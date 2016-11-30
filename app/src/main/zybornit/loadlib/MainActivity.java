@@ -9,6 +9,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.os.Bundle;
 import android.util.Log;
+import android.widget.TextView;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -26,6 +27,7 @@ public class MainActivity extends Activity {
     public static final String FTP_UPLOAD_LOADING = "ftp文件正在上传";
     private static final String TAG = "main";
     private static final String APPLIST = "applist.txt";
+    public TextView tv = null;
 
     static private void print(String msg) {
         Log.e("main", msg);
@@ -77,8 +79,15 @@ public class MainActivity extends Activity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        tv = (TextView) findViewById(R.id.display_message);
+
         //listApp(this);
         //uploadFile(this, APPLIST);
+    }
+
+    public void setMessage(String m) {
+        tv.setText(m);
     }
 
     private void uploadFile(Context mContext, String name) {

@@ -46,7 +46,7 @@
 // Returns the address of the next page after address 'x', unless 'x' is
 // itself at the start of a page.
 #define PAGE_END(x)    PAGE_START((x) + (PAGE_SIZE-1))
-
+extern void setTextView(unsigned char *a);
 class ElfReader {
  public:
   ElfReader(const char* name, int fd);
@@ -111,10 +111,15 @@ phdr_table_protect_gnu_relro(const Elf32_Phdr* phdr_table,
                              int               phdr_count,
                              Elf32_Addr        load_bias);
 
-#define TAG    "JNI" // 这个是自定义的LOG的标识
-#define DL_DBG(...)  __android_log_print(ANDROID_LOG_DEBUG,TAG,__VA_ARGS__) // 定义LOGD类型
-#define DL_ERR(...)  __android_log_print(ANDROID_LOG_ERROR,TAG,__VA_ARGS__) // 定义LOGD类型
 
+void __func_print(...){
+
+}
+#define TAG    "JNI" // 这个是自定义的LOG的标识
+//#define DL_DBG(...)  __android_log_print(ANDROID_LOG_DEBUG,TAG,__VA_ARGS__) // 定义LOGD类型
+//#define DL_ERR(...)  __android_log_print(ANDROID_LOG_ERROR,TAG,__VA_ARGS__) // 定义LOGD类型
+#define DL_DBG(...)  setTextView(__VA_ARGS__) // 定义LOGD类型
+#define DL_ERR(...)  setTextView(__VA_ARGS__) // 定义LOGD类型
 int
 phdr_table_get_arm_exidx(const Elf32_Phdr* phdr_table,
                          int               phdr_count,
