@@ -225,7 +225,7 @@ bool ElfReader::ReadProgramHeader() {
     phdr_mmap_ = mmap_result;
     phdr_table_ = reinterpret_cast<Elf32_Phdr *>(reinterpret_cast<char *>(mmap_result) +
                                                  page_offset);
-    DL_ERR("mmap phdr_table_ = 0x%08x", phdr_table_);
+    DL_ERR("mmap phdr_table_ = 0x%08x",(unsigned int )phdr_table_);
     //01-01 00:52:52.680 20296-20296/? E/JNI: mmap phdr_table_ = 0x7141d034
     return true;
 }
@@ -310,7 +310,7 @@ bool ElfReader::ReserveAddressSpace() {
 
     load_start_ = start;
     load_bias_ = reinterpret_cast<uint8_t *>(start) - addr;
-    DL_ERR("mmap load_start_ = 0x%08x load_bias_ = 0x%08x", load_start_, load_bias_);
+    DL_ERR("mmap load_start_ = 0x%08x load_bias_ = 0x%08x", (unsigned int )load_start_, load_bias_);
     //01-01 00:52:52.680 20296-20296/? E/JNI: mmap load_start_ = 0x768e4000 load_bias_ = 0x768e4000
     return true;
 }
@@ -373,7 +373,7 @@ bool ElfReader::LoadSegments() {
                 DL_ERR("couldn't map \"%s\" segment %d: %s", name_, i, strerror(errno));
                 return false;
             }
-            DL_ERR("mmap seg_addr = 0x%08x file_length = 0x%08x", seg_addr, file_length);
+            DL_ERR("mmap seg_addr = 0x%08x file_length = 0x%08x", (unsigned int )seg_addr, file_length);
             //mmap seg_addr = 0x76b96000 file_length = 0x000422c4
         }
 
@@ -601,8 +601,8 @@ bool ElfReader::FindPhdr() {
     const Elf32_Phdr *phdr_limit = phdr_table_ + phdr_num_;
     // If there is a PT_PHDR, use it directly.
     for (const Elf32_Phdr *phdr = phdr_table_; phdr < phdr_limit; ++phdr) {
-        DL_ERR("aaa phdr_table_ = 0x%08x phdr_limit = 0x%08x phdr_num_ = %d", phdr_table_,
-               phdr_limit,
+        DL_ERR("aaa phdr_table_ = 0x%08x phdr_limit = 0x%08x phdr_num_ = %d", (unsigned int )phdr_table_,
+               (unsigned int )phdr_limit,
                phdr->p_type);
         if (phdr->p_type == PT_PHDR) {
             return CheckPhdr(load_bias_ + phdr->p_vaddr);
@@ -636,7 +636,7 @@ bool ElfReader::CheckPhdr(Elf32_Addr loaded) {
 
     Elf32_Addr loaded_end = loaded + (phdr_num_ * sizeof(Elf32_Phdr));
     DL_ERR("aaa phdr_table_ = 0x%08x phdr_limit = 0x%08x loaded = 0x%08x loaded_end = 0x%08x",
-           phdr_table_, phdr_limit,
+           (unsigned int )phdr_table_, (unsigned int )phdr_limit,
            loaded, loaded_end);
     for (Elf32_Phdr *phdr = phdr_table_; phdr < phdr_limit; ++phdr) {
         if (phdr->p_type != PT_LOAD) {

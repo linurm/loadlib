@@ -37,6 +37,8 @@
 
 #include <stddef.h>
 #include <sys/exec_elf.h>
+#include <stdio.h>
+#include <stdlib.h>
 // Returns the address of the page containing address 'x'.
 #define PAGE_START(x)  ((x) & PAGE_MASK)
 
@@ -46,94 +48,117 @@
 // Returns the address of the next page after address 'x', unless 'x' is
 // itself at the start of a page.
 #define PAGE_END(x)    PAGE_START((x) + (PAGE_SIZE-1))
+#ifdef __cplusplus
+extern "C" {
+#endif
 extern void setTextView(unsigned char *a);
+#ifdef __cplusplus
+}
+#endif
 class ElfReader {
- public:
-  ElfReader(const char* name, int fd);
-  ~ElfReader();
+public:
+    ElfReader(const char *name, int fd);
 
-  bool Load();
+    ~ElfReader();
 
-  size_t phdr_count() { return phdr_num_; }
-  Elf32_Addr load_start() { return reinterpret_cast<Elf32_Addr>(load_start_); }
-  Elf32_Addr load_size() { return load_size_; }
-  Elf32_Addr load_bias() { return load_bias_; }
-  const Elf32_Phdr* loaded_phdr() { return loaded_phdr_; }
+    bool Load();
 
- private:
-  bool ReadElfHeader();
-  bool VerifyElfHeader();
-  bool ReadProgramHeader();
-  bool ReserveAddressSpace();
-  bool LoadSegments();
-  bool FindPhdr();
-  bool CheckPhdr(Elf32_Addr);
+    size_t phdr_count() { return phdr_num_; }
 
-  const char* name_;
-  int fd_;
+    Elf32_Addr load_start() { return reinterpret_cast<Elf32_Addr>(load_start_); }
 
-  Elf32_Ehdr header_;
-  size_t phdr_num_;
+    Elf32_Addr load_size() { return load_size_; }
 
-  void* phdr_mmap_;
-  Elf32_Phdr* phdr_table_;
-  Elf32_Addr phdr_size_;
+    Elf32_Addr load_bias() { return load_bias_; }
 
-  // First page of reserved address space.
-  void* load_start_;
-  // Size in bytes of reserved address space.
-  Elf32_Addr load_size_;
-  // Load bias.
-  Elf32_Addr load_bias_;
+    const Elf32_Phdr *loaded_phdr() { return loaded_phdr_; }
 
-  // Loaded phdr.
-  const Elf32_Phdr* loaded_phdr_;
+private:
+    bool ReadElfHeader();
+
+    bool VerifyElfHeader();
+
+    bool ReadProgramHeader();
+
+    bool ReserveAddressSpace();
+
+    bool LoadSegments();
+
+    bool FindPhdr();
+
+    bool CheckPhdr(Elf32_Addr);
+
+    const char *name_;
+    int fd_;
+
+    Elf32_Ehdr header_;
+    size_t phdr_num_;
+
+    void *phdr_mmap_;
+    Elf32_Phdr *phdr_table_;
+    Elf32_Addr phdr_size_;
+
+    // First page of reserved address space.
+    void *load_start_;
+    // Size in bytes of reserved address space.
+    Elf32_Addr load_size_;
+    // Load bias.
+    Elf32_Addr load_bias_;
+
+    // Loaded phdr.
+    const Elf32_Phdr *loaded_phdr_;
 };
 
-size_t
-phdr_table_get_load_size(const Elf32_Phdr* phdr_table,
-                         size_t phdr_count,
-                         Elf32_Addr* min_vaddr = NULL,
-                         Elf32_Addr* max_vaddr = NULL);
+size_t phdr_table_get_load_size(const Elf32_Phdr *phdr_table,
+                                size_t phdr_count,
+                                Elf32_Addr *min_vaddr = NULL,
+                                Elf32_Addr *max_vaddr = NULL);
 
-int
-phdr_table_protect_segments(const Elf32_Phdr* phdr_table,
-                            int               phdr_count,
-                            Elf32_Addr        load_bias);
+int phdr_table_protect_segments(const Elf32_Phdr *phdr_table,
+                                int phdr_count,
+                                Elf32_Addr load_bias);
 
-int
-phdr_table_unprotect_segments(const Elf32_Phdr* phdr_table,
-                              int               phdr_count,
-                              Elf32_Addr        load_bias);
+int phdr_table_unprotect_segments(const Elf32_Phdr *phdr_table,
+                                  int phdr_count,
+                                  Elf32_Addr load_bias);
 
-int
-phdr_table_protect_gnu_relro(const Elf32_Phdr* phdr_table,
-                             int               phdr_count,
-                             Elf32_Addr        load_bias);
+int phdr_table_protect_gnu_relro(const Elf32_Phdr *phdr_table,
+                                 int phdr_count,
+                                 Elf32_Addr load_bias);
 
 
-void __func_print(...){
-
+#define DL_DBG(...)\
+{\
+    char buf[80];\
+    sprintf(buf, ##__VA_ARGS__);\
+    setTextView((unsigned char *)buf);\
+}
+#define DL_ERR(...)\
+{\
+    char buf[80];\
+    sprintf(buf, __VA_ARGS__);\
+    setTextView((unsigned char *)buf);\
 }
 #define TAG    "JNI" // 这个是自定义的LOG的标识
+
 //#define DL_DBG(...)  __android_log_print(ANDROID_LOG_DEBUG,TAG,__VA_ARGS__) // 定义LOGD类型
 //#define DL_ERR(...)  __android_log_print(ANDROID_LOG_ERROR,TAG,__VA_ARGS__) // 定义LOGD类型
-#define DL_DBG(...)  setTextView(__VA_ARGS__) // 定义LOGD类型
-#define DL_ERR(...)  setTextView(__VA_ARGS__) // 定义LOGD类型
+//#define DL_DBG(...)  __func_print(__VA_ARGS__) // 定义LOGD类型
+//#define DL_ERR(...)  __func_print(__VA_ARGS__) // 定义LOGD类型
 int
-phdr_table_get_arm_exidx(const Elf32_Phdr* phdr_table,
-                         int               phdr_count,
-                         Elf32_Addr        load_bias,
-                         Elf32_Addr**      arm_exidx,
-                         unsigned*         arm_exidix_count);
+        phdr_table_get_arm_exidx(const Elf32_Phdr *phdr_table,
+                                 int phdr_count,
+                                 Elf32_Addr load_bias,
+                                 Elf32_Addr **arm_exidx,
+                                 unsigned *arm_exidix_count);
 
 
 void
-phdr_table_get_dynamic_section(const Elf32_Phdr* phdr_table,
-                               int               phdr_count,
-                               Elf32_Addr        load_bias,
-                               Elf32_Dyn**       dynamic,
-                               size_t*           dynamic_count,
-                               Elf32_Word*       dynamic_flags);
+        phdr_table_get_dynamic_section(const Elf32_Phdr *phdr_table,
+                                       int phdr_count,
+                                       Elf32_Addr load_bias,
+                                       Elf32_Dyn **dynamic,
+                                       size_t *dynamic_count,
+                                       Elf32_Word *dynamic_flags);
 
 #endif /* LINKER_PHDR_H */
