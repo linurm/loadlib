@@ -28,7 +28,7 @@ add_library( # Sets the name of the library.
 # default, you only need to specify the name of the public NDK library
 # you want to add. CMake verifies that the library exists before
 # completing its build.
-
+include_directories($JNI_H_INCLUDE)
 find_library( # Sets the name of the path variable.
               log-lib
               # Specifies the name of the NDK library that
@@ -45,4 +45,5 @@ target_link_libraries( # Specifies the target library.
                        # Links the target library to the log library
                        # included in the NDK.
                        ${log-lib} )
+
 include_directories(src/main/jni)

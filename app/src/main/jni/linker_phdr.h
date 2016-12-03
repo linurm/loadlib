@@ -55,6 +55,7 @@ extern void setTextView(unsigned char *a);
 #ifdef __cplusplus
 }
 #endif
+
 class ElfReader {
 public:
     ElfReader(const char *name, int fd);
@@ -127,38 +128,34 @@ int phdr_table_protect_gnu_relro(const Elf32_Phdr *phdr_table,
                                  Elf32_Addr load_bias);
 
 
-#define DL_DBG(...)\
+#define DL_PRINT(fmt, ...)\
 {\
-    char buf[80];\
-    sprintf(buf, ##__VA_ARGS__);\
+    char buf[160];\
+    snprintf(buf,159,"%s: %s", ## __VA_ARGS__);\
     setTextView((unsigned char *)buf);\
 }
-#define DL_ERR(...)\
-{\
-    char buf[80];\
-    sprintf(buf, __VA_ARGS__);\
-    setTextView((unsigned char *)buf);\
-}
+#define DL_DBG(fmt,...)\
+    DL_PRINT("debug",__VA_ARGS__)
+#define DL_ERR(fmt,...)\
+    DL_PRINT("error",__VA_ARGS__)
 #define TAG    "JNI" // 这个是自定义的LOG的标识
 
 //#define DL_DBG(...)  __android_log_print(ANDROID_LOG_DEBUG,TAG,__VA_ARGS__) // 定义LOGD类型
 //#define DL_ERR(...)  __android_log_print(ANDROID_LOG_ERROR,TAG,__VA_ARGS__) // 定义LOGD类型
 //#define DL_DBG(...)  __func_print(__VA_ARGS__) // 定义LOGD类型
 //#define DL_ERR(...)  __func_print(__VA_ARGS__) // 定义LOGD类型
-int
-        phdr_table_get_arm_exidx(const Elf32_Phdr *phdr_table,
-                                 int phdr_count,
-                                 Elf32_Addr load_bias,
-                                 Elf32_Addr **arm_exidx,
-                                 unsigned *arm_exidix_count);
+int phdr_table_get_arm_exidx(const Elf32_Phdr *phdr_table,
+                             int phdr_count,
+                             Elf32_Addr load_bias,
+                             Elf32_Addr **arm_exidx,
+                             unsigned *arm_exidix_count);
 
 
-void
-        phdr_table_get_dynamic_section(const Elf32_Phdr *phdr_table,
-                                       int phdr_count,
-                                       Elf32_Addr load_bias,
-                                       Elf32_Dyn **dynamic,
-                                       size_t *dynamic_count,
-                                       Elf32_Word *dynamic_flags);
+void phdr_table_get_dynamic_section(const Elf32_Phdr *phdr_table,
+                                    int phdr_count,
+                                    Elf32_Addr load_bias,
+                                    Elf32_Dyn **dynamic,
+                                    size_t *dynamic_count,
+                                    Elf32_Word *dynamic_flags);
 
 #endif /* LINKER_PHDR_H */

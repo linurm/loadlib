@@ -8,7 +8,12 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
+import android.text.Editable;
 import android.util.Log;
+import android.view.View;
+import android.widget.Button;
 import android.widget.TextView;
 
 import java.io.BufferedReader;
@@ -28,6 +33,10 @@ public class MainActivity extends Activity {
     private static final String TAG = "main";
     private static final String APPLIST = "applist.txt";
     public TextView tv = null;
+    public Button refresh_btn = null;
+    public Handler handler;
+    LoadLibrary llb = null;
+    private String libso;
 
     static private void print(String msg) {
         Log.e("main", msg);
@@ -81,13 +90,26 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
 
         tv = (TextView) findViewById(R.id.display_message);
+        tv.setText("");
+        tv.setText(tv.getText(), TextView.BufferType.EDITABLE);
 
+        refresh_btn = (Button) findViewById(R.id.refresh);
+        refresh_btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                tv.setText("");
+                test2(libso);
+            }
+        });
+        //test2(this, libso);
         //listApp(this);
         //uploadFile(this, APPLIST);
     }
 
     public void setMessage(String m) {
-        tv.setText(m);
+        Editable text = (Editable) tv.getText();
+        text.append(m + "\n");
+        //Log.e("222222222222222","1111111111111111111");
     }
 
     private void uploadFile(Context mContext, String name) {
@@ -203,16 +225,32 @@ public class MainActivity extends Activity {
     protected void attachBaseContext(Context paramContext) {
         super.attachBaseContext(paramContext);
         print("ATTACHBASECONTEXT");
+        handler = new DisplayHandler(this);
         String str = paramContext.getFilesDir().getAbsolutePath();
         Context context = paramContext;
         String soName = "libjiagu";
         fileop.copy(context, soName + ".so", str, soName + "_copy.so");
-        test2(str + "/" + soName + "_copy.so");
+
+        libso = str + "/" + soName + "_copy.so";
+
+        llb = new LoadLibrary(this);
 
     }
 
+    void sendMessageToTextView(String arg, int delayMS) {
+        //String arg = "ssss";
+        Message message = Message.obtain(handler, R.id.display_textview, arg);
+        if (delayMS > 0L) {
+            handler.sendMessageDelayed(message, delayMS);
+        } else {
+            handler.sendMessage(message);
+        }
+    }
+
     void test2(String s) {
-        LoadLibrary llb = new LoadLibrary();
+
+        llb.setJNIEnv();
         Log.e("ddd", "sssssssss:" + llb.loadlib(s));
+        llb.releaseJNIEnv();
     }
 }

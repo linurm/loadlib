@@ -13,8 +13,9 @@ extern "C" {
  * Signature: (Ljava/lang/String;)Ljava/lang/String;
  */
 JNIEXPORT jstring JNICALL Java_zybornit_loadlib_LoadLibrary_loadlib
-  (JNIEnv *, jobject, jstring);
-
+        (JNIEnv *, jobject, jstring);
+JNIEXPORT void JNICALL Java_zybornit_loadlib_LoadLibrary_setJNIEnv(JNIEnv *env, jobject obj);
+JNIEXPORT void JNICALL Java_zybornit_loadlib_LoadLibrary_releaseJNIEnv(JNIEnv *env, jobject obj) {
 #ifdef __cplusplus
 }
 #endif

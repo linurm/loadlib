@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">LoadLib</string>
+    <string name="title_name">title</string>
+    <string name="content_name">content</string>
 </resources>
