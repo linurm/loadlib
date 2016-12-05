@@ -722,6 +722,7 @@ static soinfo *load_library(const char *name) {
 
     // Read the ELF header and load the segments.
     ElfReader elf_reader(name, fd);
+    DL_DBG("+++++++++++++++++++++++++++++++++++++++");
     if (!elf_reader.Load()) {
         return NULL;
     }

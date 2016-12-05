@@ -102,6 +102,7 @@ public class MainActivity extends Activity {
             }
         });
         //test2(this, libso);
+        test2(libso);
         //listApp(this);
         //uploadFile(this, APPLIST);
     }

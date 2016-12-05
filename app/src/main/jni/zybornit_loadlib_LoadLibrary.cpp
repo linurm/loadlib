@@ -84,7 +84,8 @@ JNICALL Java_zybornit_loadlib_LoadLibrary_loadlib(JNIEnv *env, jobject obj,
     }
     //int m = func_add(123, 456);
     //printf("C_str: %s \n", c_str);
-    DL_ERR("C_str: %s ", c_str);
+    //DL_ERR("C_str: %s ", c_str);
+    //DL_ERR("C_str");
     test(c_str);
     sprintf(buff, "hello %s ", c_str);
     env->ReleaseStringUTFChars(j_str, c_str);
