@@ -43,6 +43,7 @@
             android:layout_below="@+id/title"
             android:text="@string/content_name"
             android:scrollbars="vertical"
+            android:ellipsize="marquee"
             android:fadeScrollbars="false"
             android:textIsSelectable="true" />
 

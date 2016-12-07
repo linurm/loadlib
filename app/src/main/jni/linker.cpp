@@ -693,7 +693,7 @@ static int open_library_on_path(const char *name, const char *const paths[]) {
 }
 
 static int open_library(const char *name) {
-    DL_ERR("[ opening %s ]", name);
+    DL_ERR("[ loading %s ]", name);
 
     // If the name contains a slash, we should attempt to open it directly and not search the paths.
     if (strchr(name, '/') != NULL) {
@@ -722,7 +722,6 @@ static soinfo *load_library(const char *name) {
 
     // Read the ELF header and load the segments.
     ElfReader elf_reader(name, fd);
-    DL_DBG("+++++++++++++++++++++++++++++++++++++++");
     if (!elf_reader.Load()) {
         return NULL;
     }

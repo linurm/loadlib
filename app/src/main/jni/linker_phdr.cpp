@@ -27,13 +27,9 @@
  */
 
 #include "linker_phdr.h"
-#include <sys/types.h>
 #include <unistd.h>
-#include <sys/exec_elf.h>
 #include<sys/mman.h>
 #include <errno.h>
-#include <linker.h>
-#include <android/log.h>
 
 
 /**
@@ -156,6 +152,7 @@ bool ElfReader::ReadElfHeader() {
 }
 
 bool ElfReader::VerifyElfHeader() {
+    DL_ERR("++++++++++++++++++++++++++++++++++++   VerifyElfHeader");
     if (header_.e_ident[EI_MAG0] != ELFMAG0 ||
         header_.e_ident[EI_MAG1] != ELFMAG1 ||
         header_.e_ident[EI_MAG2] != ELFMAG2 ||
@@ -192,7 +189,7 @@ bool ElfReader::VerifyElfHeader() {
 // anonymous mmap-ed block.
 bool ElfReader::ReadProgramHeader() {
     phdr_num_ = header_.e_phnum;
-
+    DL_ERR("++++++++++++++++++++++++++++++++++++   ReadProgramHeader");
     // Like the kernel, we only accept program header tables that
     // are smaller than 64KiB.
     if (phdr_num_ < 1 || phdr_num_ > 65536 / sizeof(Elf32_Phdr)) {
@@ -205,28 +202,22 @@ bool ElfReader::ReadProgramHeader() {
     Elf32_Addr page_offset = PAGE_OFFSET(header_.e_phoff);
 
     phdr_size_ = page_max - page_min;
-
-    DL_ERR("header_.e_phoff = 0x%08x", header_.e_phoff);
-    DL_ERR("phdr_num_ = 0x%08x", phdr_num_);
-    DL_ERR("page_offset = 0x%08x", page_offset);
-    DL_ERR("page_min = 0x%08x  page_max = 0x%08x", page_min, page_max);
-    //01-01 00:52:52.680 20296-20296/? E/JNI: header_.e_phoff = 0x00000034
-    //01-01 00:52:52.680 20296-20296/? E/JNI: phdr_num_ = 0x00000008
-    //01-01 00:52:52.680 20296-20296/? E/JNI: page_offset = 0x00000034
-    //01-01 00:52:52.680 20296-20296/? E/JNI: page_min = 0x00000000  page_max = 0x00001000
-
+    DL_ERR("header_.e_phoff = 0x%X", header_.e_phoff);
+    DL_ERR("phdr_num_ = 0x%X", phdr_num_);
+    DL_ERR("page_offset = 0x%X", page_offset);
+    DL_ERR("page_min = 0x%X  page_max = 0x%X", page_min, page_max);
 
     void *mmap_result = mmap(NULL, phdr_size_, PROT_READ, MAP_PRIVATE, fd_, page_min);
     if (mmap_result == MAP_FAILED) {
         DL_ERR("\"%s\" phdr mmap failed: %s", name_, strerror(errno));
         return false;
     }
-
     phdr_mmap_ = mmap_result;
     phdr_table_ = reinterpret_cast<Elf32_Phdr *>(reinterpret_cast<char *>(mmap_result) +
                                                  page_offset);
-    DL_ERR("mmap phdr_table_ = 0x%08x",(unsigned int )phdr_table_);
-    //01-01 00:52:52.680 20296-20296/? E/JNI: mmap phdr_table_ = 0x7141d034
+    DL_ERR("[FILE]:[0 --- 0x%X]  ==>  [MEM]:[0x%X --- 0x%X]", phdr_size_, mmap_result,
+           (((int) phdr_size_) + ((int) mmap_result)));
+    DL_ERR("phdr_table_ = 0x%X", (unsigned int) phdr_table_);
     return true;
 }
 
@@ -251,6 +242,13 @@ size_t phdr_table_get_load_size(const Elf32_Phdr *phdr_table,
     for (size_t i = 0; i < phdr_count; ++i) {
         const Elf32_Phdr *phdr = &phdr_table[i];
 
+        DL_ERR("PH  0x%03X  [FILE]:[0x%05X --- 0x%05X]   [MEM]:[0x%05X   0x%05X]", phdr->p_type,
+               phdr->p_paddr, phdr->p_filesz, phdr->p_vaddr, phdr->p_memsz);
+
+//        DL_ERR("PH  0x%03X  [FILE]:[0x%X --- 0x%X]   [MEM]:[0x%X   0x%X]   0x%X   0x%X   0x%X",
+//               phdr->p_type, phdr->p_offset, phdr->p_vaddr, phdr->p_paddr, phdr->p_filesz,
+//               phdr->p_memsz, phdr->p_flags, phdr->p_align);
+
         if (phdr->p_type != PT_LOAD) {
             continue;
         }
@@ -263,15 +261,12 @@ size_t phdr_table_get_load_size(const Elf32_Phdr *phdr_table,
         if (phdr->p_vaddr + phdr->p_memsz > max_vaddr) {
             max_vaddr = phdr->p_vaddr + phdr->p_memsz;
         }
-        DL_ERR("max 0x%08x p_vaddr = 0x%08x p_memsz = 0x%08x", max_vaddr, phdr->p_vaddr,
-               phdr->p_memsz);
-        //01-01 00:52:52.680 20296-20296/? E/JNI: max 0x00028cf8 p_vaddr = 0x00000000 p_memsz = 0x00028cf8
-        //01-01 00:52:52.680 20296-20296/? E/JNI: max 0x000930fc p_vaddr = 0x0002a5d8 p_memsz = 0x00068b24
+
     }
     if (!found_pt_load) {
         min_vaddr = 0x00000000U;
     }
-    DL_ERR("min_vaddr 0x%08x max_vaddr = 0x%08x", min_vaddr, max_vaddr);
+    //DL_ERR("min_vaddr 0x%X max_vaddr = 0x%X", min_vaddr, max_vaddr);
     //01-01 00:52:52.680 20296-20296/? E/JNI: min_vaddr 0x00000000 max_vaddr = 0x000930fc
 
     min_vaddr = PAGE_START(min_vaddr);
@@ -283,7 +278,7 @@ size_t phdr_table_get_load_size(const Elf32_Phdr *phdr_table,
     if (out_max_vaddr != NULL) {
         *out_max_vaddr = max_vaddr;
     }
-    DL_ERR("min_vaddr 0x%08x max_vaddr = 0x%08x", min_vaddr, max_vaddr);
+    DL_ERR("min_vaddr 0x%X max_vaddr = 0x%X", min_vaddr, max_vaddr);
     //01-01 00:52:52.680 20296-20296/? E/JNI: min_vaddr 0x00000000 max_vaddr = 0x00094000
     return max_vaddr - min_vaddr;
 }
@@ -293,12 +288,13 @@ size_t phdr_table_get_load_size(const Elf32_Phdr *phdr_table,
 // private anonymous mmap() with PROT_NONE.
 bool ElfReader::ReserveAddressSpace() {
     Elf32_Addr min_vaddr;
+    DL_ERR("++++++++++++++++++++++++++++++++++++   ReserveAddressSpace");
     load_size_ = phdr_table_get_load_size(phdr_table_, phdr_num_, &min_vaddr);
     if (load_size_ == 0) {
         DL_ERR("\"%s\" has no loadable segments", name_);
         return false;
     }
-    DL_ERR("load_size_ = 0x%08x min_vaddr = 0x%08x", load_size_, min_vaddr);
+    DL_ERR("load_size_ = 0x%X min_vaddr = 0x%X", load_size_, min_vaddr);
     //01-01 00:52:52.680 20296-20296/? E/JNI: load_size_ = 0x00094000 min_vaddr = 0x00000000
     uint8_t *addr = reinterpret_cast<uint8_t *>(min_vaddr);
     int mmap_flags = MAP_PRIVATE | MAP_ANONYMOUS;
@@ -310,7 +306,9 @@ bool ElfReader::ReserveAddressSpace() {
 
     load_start_ = start;
     load_bias_ = reinterpret_cast<uint8_t *>(start) - addr;
-    DL_ERR("mmap load_start_ = 0x%08x load_bias_ = 0x%08x", (unsigned int )load_start_, load_bias_);
+    DL_ERR("[-MEM]:[0x%X --- 0x%X] load_start_ = 0x%X load_bias_ = 0x%X",
+           (unsigned int) load_start_, (unsigned int) ((int) load_start_ + (int) load_size_),
+           (unsigned int) load_start_, load_bias_);
     //01-01 00:52:52.680 20296-20296/? E/JNI: mmap load_start_ = 0x768e4000 load_bias_ = 0x768e4000
     return true;
 }
@@ -320,6 +318,7 @@ bool ElfReader::ReserveAddressSpace() {
 // reserve the address space range for the library.
 // TODO: assert assumption.
 bool ElfReader::LoadSegments() {
+    DL_ERR("++++++++++++++++++++++++++++++++++++   LoadSegments");
     for (size_t i = 0; i < phdr_num_; ++i) {
         const Elf32_Phdr *phdr = &phdr_table_[i];
 
@@ -330,36 +329,36 @@ bool ElfReader::LoadSegments() {
         // Segment addresses in memory.
         Elf32_Addr seg_start = phdr->p_vaddr + load_bias_;
         Elf32_Addr seg_end = seg_start + phdr->p_memsz;
-        DL_ERR("+++++++++++++++phdr->p_vaddr = 0x%08x phdr->p_memsz = 0x%08x", phdr->p_vaddr,
-               phdr->p_memsz);
+        //DL_ERR("PT_LOAD phdr->p_vaddr = 0x%X phdr->p_memsz = 0x%X", phdr->p_vaddr,
+        // phdr->p_memsz);
         //+++++++++++++++phdr->p_vaddr = 0x0002a5d8 phdr->p_memsz = 0x00068b24
         //readelf -l
-        DL_ERR("seg_start = 0x%08x seg_end = 0x%08x", seg_start, seg_end);
+        //DL_ERR("seg_start = 0x%X seg_end = 0x%X", seg_start, seg_end);
         //seg_start = 0x76b965d8 seg_end = 0x76bff0fc
         //load_bias_   in mem segment
 
         Elf32_Addr seg_page_start = PAGE_START(seg_start);
         Elf32_Addr seg_page_end = PAGE_END(seg_end);
 
-        DL_ERR("seg_page_start = 0x%08x seg_page_end = 0x%08x", seg_page_start, seg_page_end);
+        //DL_ERR("seg_page_start = 0x%X seg_page_end = 0x%X", seg_page_start, seg_page_end);
         //seg_page_start = 0x76b96000 seg_page_end = 0x76c00000
         //change to page
 
         Elf32_Addr seg_file_end = seg_start + phdr->p_filesz;
 
-        DL_ERR("seg_file_end = 0x%08x phdr->p_filesz = 0x%08x", seg_file_end, phdr->p_filesz);
+        //DL_ERR("seg_file_end = 0x%X phdr->p_filesz = 0x%X", seg_file_end, phdr->p_filesz);
         //seg_file_end = 0x76bd82c4 phdr->p_filesz = 0x00041cec
         //file end in mem
 
         // File offsets.
         Elf32_Addr file_start = phdr->p_offset;
         Elf32_Addr file_end = file_start + phdr->p_filesz;
-        DL_ERR("file_start = 0x%08x file_end = 0x%08x", file_start, file_end);
+        //DL_ERR("file_start = 0x%X file_end = 0x%X", file_start, file_end);
         //file_start = 0x000295d8 file_end = 0x0006b2c4
         //readelf -l
         Elf32_Addr file_page_start = PAGE_START(file_start);
         Elf32_Addr file_length = file_end - file_page_start;
-        DL_ERR("file_page_start = 0x%08x file_length = 0x%08x", file_page_start, file_length);
+        //DL_ERR("file_page_start = 0x%X file_length = 0x%X", file_page_start, file_length);
         //file_page_start = 0x00029000 file_length = 0x000422c4
         // change to page
         if (file_length != 0) {
@@ -373,7 +372,9 @@ bool ElfReader::LoadSegments() {
                 DL_ERR("couldn't map \"%s\" segment %d: %s", name_, i, strerror(errno));
                 return false;
             }
-            DL_ERR("mmap seg_addr = 0x%08x file_length = 0x%08x", (unsigned int )seg_addr, file_length);
+            DL_ERR("[FILE]:[0x%X --- 0x%X] ===> [MEM]:[0x%X --- 0x%X]", phdr->p_vaddr,
+                   (phdr->p_vaddr + phdr->p_filesz), (unsigned int) seg_addr,
+                   ((unsigned int) seg_addr + (unsigned int) file_length));
             //mmap seg_addr = 0x76b96000 file_length = 0x000422c4
         }
 
@@ -382,6 +383,8 @@ bool ElfReader::LoadSegments() {
         if ((phdr->p_flags & PF_W) != 0 && PAGE_OFFSET(seg_file_end) >
                                            0) { ;
             memset((void *) seg_file_end, 0, PAGE_SIZE - PAGE_OFFSET(seg_file_end));
+            DL_ERR("[MEM]:[0x%X --- 0x%X] CLEAR", seg_file_end,
+                   (PAGE_SIZE - PAGE_OFFSET(seg_file_end)));
         }
 
         seg_file_end = PAGE_END(seg_file_end);
@@ -401,6 +404,7 @@ bool ElfReader::LoadSegments() {
                 DL_ERR("couldn't zero fill \"%s\" gap: %s", name_, strerror(errno));
                 return false;
             }
+            DL_ERR("------------------------------------");
         }
     }
     return true;
@@ -598,11 +602,13 @@ phdr_table_get_dynamic_section(const Elf32_Phdr *phdr_table,
 // segments in memory. This is in contrast with 'phdr_table_' which
 // is temporary and will be released before the library is relocated.
 bool ElfReader::FindPhdr() {
+    DL_ERR("++++++++++++++++++++++++++++++++++++   FindPhdr");
     const Elf32_Phdr *phdr_limit = phdr_table_ + phdr_num_;
     // If there is a PT_PHDR, use it directly.
     for (const Elf32_Phdr *phdr = phdr_table_; phdr < phdr_limit; ++phdr) {
-        DL_ERR("aaa phdr_table_ = 0x%08x phdr_limit = 0x%08x phdr_num_ = %d", (unsigned int )phdr_table_,
-               (unsigned int )phdr_limit,
+        DL_ERR("aaa phdr_table_ = 0x%X phdr_limit = 0x%X phdr_num_ = %d",
+               (unsigned int) phdr_table_,
+               (unsigned int) phdr_limit,
                phdr->p_type);
         if (phdr->p_type == PT_PHDR) {
             return CheckPhdr(load_bias_ + phdr->p_vaddr);
@@ -635,8 +641,8 @@ bool ElfReader::CheckPhdr(Elf32_Addr loaded) {
     const Elf32_Phdr *phdr_limit = phdr_table_ + phdr_num_;
 
     Elf32_Addr loaded_end = loaded + (phdr_num_ * sizeof(Elf32_Phdr));
-    DL_ERR("aaa phdr_table_ = 0x%08x phdr_limit = 0x%08x loaded = 0x%08x loaded_end = 0x%08x",
-           (unsigned int )phdr_table_, (unsigned int )phdr_limit,
+    DL_ERR("aaa phdr_table_ = 0x%X phdr_limit = 0x%X loaded = 0x%X loaded_end = 0x%X",
+           (unsigned int) phdr_table_, (unsigned int) phdr_limit,
            loaded, loaded_end);
     for (Elf32_Phdr *phdr = phdr_table_; phdr < phdr_limit; ++phdr) {
         if (phdr->p_type != PT_LOAD) {
@@ -644,8 +650,8 @@ bool ElfReader::CheckPhdr(Elf32_Addr loaded) {
         }
         Elf32_Addr seg_start = phdr->p_vaddr + load_bias_;
         Elf32_Addr seg_end = phdr->p_filesz + seg_start;
-        DL_ERR("aaa seg_start = 0x%08x seg_end = 0x%08x phdr->p_filesz = 0x%08x",
-               seg_start, seg_end,phdr->p_filesz);
+        DL_ERR("aaa seg_start = 0x%X seg_end = 0x%X phdr->p_filesz = 0x%X",
+               seg_start, seg_end, phdr->p_filesz);
         if (seg_start <= loaded && loaded_end <= seg_end) {
             loaded_phdr_ = reinterpret_cast<const Elf32_Phdr *>(loaded);
             return true;

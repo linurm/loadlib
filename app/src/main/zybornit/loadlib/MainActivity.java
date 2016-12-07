@@ -11,6 +11,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.text.Editable;
+import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -92,24 +93,37 @@ public class MainActivity extends Activity {
         tv = (TextView) findViewById(R.id.display_message);
         tv.setText("");
         tv.setText(tv.getText(), TextView.BufferType.EDITABLE);
-
+        tv.setMovementMethod(ScrollingMovementMethod.getInstance());
         refresh_btn = (Button) findViewById(R.id.refresh);
         refresh_btn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 tv.setText("");
                 test2(libso);
+
             }
         });
         //test2(this, libso);
-        test2(libso);
+        //test2(libso);
+
         //listApp(this);
         //uploadFile(this, APPLIST);
+    }
+
+    void scrollToFirst() {
+        int offset = tv.getLineCount() * tv.getLineHeight();
+
+        Log.e("========", " " + tv.getLineCount() + ":" + tv.getLineHeight() + ":" + tv.getHeight() + ":" + offset);
+        //tv.setVerticalScrollbarPosition(5);
+        if (offset > tv.getHeight()) {
+            tv.scrollTo(0, 0);
+        }
     }
 
     public void setMessage(String m) {
         Editable text = (Editable) tv.getText();
         text.append(m + "\n");
+        scrollToFirst();
         //Log.e("222222222222222","1111111111111111111");
     }
 
