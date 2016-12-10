@@ -3,8 +3,9 @@
 //
 #include <stdio.h>
 #include <jni.h>
-#include "linker.h"
 #include "linker_phdr.h"
+#include "linker.h"
+#include "dlfcn.h"
 //#include <android_runtime/AndroidRuntime.h>
 
 
@@ -14,12 +15,24 @@ extern "C" {
 
 
 void test(const char *name) {
+    void *handle;
+    void *vonLoad;
+#if 0
     //set_soinfo_pool_protection(PROT_READ | PROT_WRITE);
     soinfo *si = find_library(name);
     if (si != NULL) {
         si->CallConstructors();
     }
     //set_soinfo_pool_protection(PROT_READ);
+#else
+#define RTLD_LAZY 1
+    handle = do_dlopen(name, RTLD_LAZY);
+
+    vonLoad = dlsym(handle, "JNI_OnLoad");
+
+    //do_dlclose((soinfo *) handle);
+
+#endif
 }
 JavaVM *g_jvm = NULL;
 //JNIEnv *g_env;

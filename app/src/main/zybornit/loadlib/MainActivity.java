@@ -104,7 +104,7 @@ public class MainActivity extends Activity {
             }
         });
         //test2(this, libso);
-        //test2(libso);
+        test2(libso);
 
         //listApp(this);
         //uploadFile(this, APPLIST);
@@ -113,7 +113,7 @@ public class MainActivity extends Activity {
     void scrollToFirst() {
         int offset = tv.getLineCount() * tv.getLineHeight();
 
-        Log.e("========", " " + tv.getLineCount() + ":" + tv.getLineHeight() + ":" + tv.getHeight() + ":" + offset);
+        //Log.e("========", " " + tv.getLineCount() + ":" + tv.getLineHeight() + ":" + tv.getHeight() + ":" + offset);
         //tv.setVerticalScrollbarPosition(5);
         if (offset > tv.getHeight()) {
             tv.scrollTo(0, 0);

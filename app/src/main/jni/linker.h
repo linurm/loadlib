@@ -36,9 +36,17 @@
 
 #include <link.h>
 
+#define R_ARM_ABS32              2
+#define R_ARM_REL32              3
+#define R_ARM_COPY               20
+#define R_ARM_GLOB_DAT           21
+#define  R_ARM_JUMP_SLOT         22
+#define R_ARM_RELATIVE           23
+
+#define CMP(name, STR) (memcmp(name,STR,sizeof(STR))==0)
 
 
-
+void do_android_update_LD_LIBRARY_PATH(const char *ld_library_path);
 // Magic shared structures that GDB knows about.
 
 struct link_map_t {
@@ -147,8 +155,10 @@ public:
 public:
     void CallArray2(const char *array_name, linker_function_t *functions, size_t count,
                     bool reverse);
+
 private:
     void CallFunction2(const char *function_name, linker_function_t function);
+
 private:
     void CallArray(const char *array_name, linker_function_t *functions, size_t count,
                    bool reverse);
@@ -156,7 +166,7 @@ private:
     void CallFunction(const char *function_name, linker_function_t function);
 };
 
-extern soinfo libdl_info;
+
 
 // These aren't defined in <sys/exec_elf.h>.
 #ifndef DT_PREINIT_ARRAY
@@ -180,4 +190,5 @@ Elf32_Sym *dlsym_handle_lookup(soinfo *si, const char *name);
 
 soinfo *find_library(const char *name);
 
+extern soinfo libdl_info;
 #endif

@@ -26,7 +26,7 @@
  * SUCH DAMAGE.
  */
 
-#include <dlfcn.h>
+#include "dlfcn.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -37,7 +37,7 @@
 
 #include "linker.h"
 #include "linker_phdr.h"
-#include "ScopedPthreadMutexLocker.h"
+
 #include "libc_logging.h"
 /* Assume average path length of 64 and max 8 paths */
 #define LDPATH_BUFSIZE 512
@@ -48,10 +48,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define ANDROID_LIBDL_STRTAB \
-    "dlopen\0dlclose\0dlsym\0dlerror\0dladdr\0android_update_LD_LIBRARY_PATH\0dl_unwind_find_exidx\0"
 // name_offset: starting index of the name in libdl_info.strtab
-static pthread_mutex_t gDlMutex = PTHREAD_RECURSIVE_MUTEX_INITIALIZER;
 
 void do_android_update_LD_LIBRARY_PATH(const char *ld_library_path) {
     /*if (!get_AT_SECURE()) {
@@ -59,10 +56,6 @@ void do_android_update_LD_LIBRARY_PATH(const char *ld_library_path) {
     }*/
 }
 
-void android_update_LD_LIBRARY_PATH(const char *ld_library_path) {
-    ScopedPthreadMutexLocker locker(&gDlMutex);
-    do_android_update_LD_LIBRARY_PATH(ld_library_path);
-}
 
 #define ELF32_SYM_INITIALIZER(name_offset, value, shndx) \
     { name_offset, \
@@ -72,62 +65,10 @@ void android_update_LD_LIBRARY_PATH(const char *ld_library_path) {
       /* st_other */ 0, \
       shndx }
 
-static Elf32_Sym gLibDlSymtab[] = {
-        // Total length of libdl_info.strtab, including trailing 0.
-        // This is actually the STH_UNDEF entry. Technically, it's
-        // supposed to have st_name == 0, but instead, it points to an index
-        // in the strtab with a \0 to make iterating through the symtab easier.
-        ELF32_SYM_INITIALIZER(sizeof(ANDROID_LIBDL_STRTAB) - 1, NULL, 0),
-        ELF32_SYM_INITIALIZER(0, &dlopen, 1),
-        ELF32_SYM_INITIALIZER(7, &dlclose, 1),
-        ELF32_SYM_INITIALIZER(15, &dlsym, 1),
-        ELF32_SYM_INITIALIZER(21, &dlerror, 1),
-        ELF32_SYM_INITIALIZER(29, &dladdr, 1),
-        ELF32_SYM_INITIALIZER(36, &android_update_LD_LIBRARY_PATH, 1),
-#if defined(ANDROID_ARM_LINKER)
-        ELF32_SYM_INITIALIZER(67, &dl_unwind_find_exidx, 1),
-#elif defined(ANDROID_X86_LINKER) || defined(ANDROID_MIPS_LINKER)
-        ELF32_SYM_INITIALIZER(67, &dl_iterate_phdr, 1),
-#endif
-};
-
 static unsigned gLibDlBuckets[1] = {1};
 static unsigned gLibDlChains[8] = {0, 2, 3, 4, 5, 6, 7, 0};
 
 
-soinfo libdl_info = {
-        "libdl.so",
-
-        phdr: 0, phnum: 0,
-        entry: 0, base: 0, size: 0,
-        unused1: 0, dynamic: 0, unused2: 0, unused3: 0,
-        next: 0,
-
-        flags: FLAG_LINKED,
-
-        strtab: ANDROID_LIBDL_STRTAB,
-        symtab: gLibDlSymtab,
-
-        nbucket: 1,
-        nchain: 8,
-        bucket: gLibDlBuckets,
-        chain: gLibDlChains,
-
-        plt_got: 0, plt_rel: 0, plt_rel_count: 0, rel: 0, rel_count: 0,
-        preinit_array: 0, preinit_array_count: 0, init_array: 0, init_array_count: 0,
-        fini_array: 0, fini_array_count: 0, init_func: 0, fini_func: 0,
-
-
-        ARM_exidx: 0, ARM_exidx_count: 0,
-
-
-        ref_count: 0,
-        {l_addr: 0, l_name: 0, l_ld: 0, l_next: 0, l_prev: 0,},
-        constructors_called: false,
-        load_bias: 0,
-        has_text_relocations: false,
-        has_DT_SYMBOLIC: true,
-};
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 /* >>> IMPORTANT NOTE - READ ME BEFORE MODIFYING <<<
  *
@@ -417,18 +358,17 @@ static void parse_LD_PRELOAD(const char *path) {
  *
  * This function is exposed via dlfcn.cpp and libdl.so.
  */
-_Unwind_Ptr dl_unwind_find_exidx(_Unwind_Ptr pc, int *pcount)
-{
+_Unwind_Ptr dl_unwind_find_exidx(_Unwind_Ptr pc, int *pcount) {
     soinfo *si;
-    unsigned addr = (unsigned)pc;
+    unsigned addr = (unsigned) pc;
 
-    for (si = solist; si != 0; si = si->next){
+    for (si = solist; si != 0; si = si->next) {
         if ((addr >= si->base) && (addr < (si->base + si->size))) {
             *pcount = si->ARM_exidx_count;
-            return (_Unwind_Ptr)si->ARM_exidx;
+            return (_Unwind_Ptr) si->ARM_exidx;
         }
     }
-   *pcount = 0;
+    *pcount = 0;
     return NULL;
 }
 
@@ -456,6 +396,30 @@ dl_iterate_phdr(int (*cb)(dl_phdr_info *info, size_t size, void *data),
 }
 
 #endif
+
+static Elf32_Sym *soinfo_elf_lookup_d(soinfo *si, unsigned hash, const char *name) {
+    Elf32_Sym *symtab = si->symtab;
+    const char *strtab = si->strtab;
+
+
+    for (unsigned n = si->bucket[hash % si->nbucket]; n != 0; n = si->chain[n]) {
+        Elf32_Sym *s = symtab + n;
+        if (strcmp(strtab + s->st_name, name)) continue;
+
+        /* only concern ourselves with global and weak symbol definitions */
+        switch (ELF32_ST_BIND(s->st_info)) {
+            case STB_GLOBAL:
+            case STB_WEAK:
+                if (s->st_shndx == SHN_UNDEF) {
+                    continue;
+                }
+
+                return s;
+        }
+    }
+
+    return NULL;
+}
 
 static Elf32_Sym *soinfo_elf_lookup(soinfo *si, unsigned hash, const char *name) {
     Elf32_Sym *symtab = si->symtab;
@@ -497,7 +461,7 @@ static unsigned elfhash(const char *_name) {
 static Elf32_Sym *soinfo_do_lookup(soinfo *si, const char *name, soinfo **lsi, soinfo *needed[]) {
     unsigned elf_hash = elfhash(name);
     Elf32_Sym *s = NULL;
-
+    //DL_ERR("%s hash 0x%x", name, elf_hash);
     if (si != NULL && somain != NULL) {
 
         /*
@@ -573,19 +537,26 @@ static Elf32_Sym *soinfo_do_lookup(soinfo *si, const char *name, soinfo **lsi, s
     }
 
     for (int i = 0; needed[i] != NULL; i++) {
-        DL_ERR("%s: looking up %s in %s",
-               si->name, name, needed[i]->name);
+//        DL_DBG("%s: looking up %s in %s",
+//               si->name, name, needed[i]->name);
+
+//        if (CMP(name, "__cxa_atexit") && CMP(needed[i]->name, "libc.so")) {
+//            DL_DBG("======================");
+//            s = soinfo_elf_lookup_d(needed[i], elf_hash, name);
+//        } else {
         s = soinfo_elf_lookup(needed[i], elf_hash, name);
+//        }
         if (s != NULL) {
             *lsi = needed[i];
             goto done;
         }
+
     }
 
     done:
     if (s != NULL) {
-        DL_ERR("si %s sym %s s->st_value = 0x%08x, "
-                       "found in %s, base = 0x%08x, load bias = 0x%08x",
+        DL_ERR("%s sym %s s->st_value = 0x%x, "
+                       "found in %s, base = 0x%x, load bias = 0x%x",
                si->name, name, s->st_value,
                (*lsi)->name, (*lsi)->base, (*lsi)->load_bias);
         return s;
@@ -629,7 +600,7 @@ Elf32_Sym *dlsym_linear_lookup(const char *name, soinfo **found, soinfo *start) 
     }
 
     if (s != NULL) {
-        DL_ERR("%s s->st_value = 0x%08x, found->base = 0x%08x",
+        DL_ERR("%s s->st_value = 0x%x, found->base = 0x%x",
                name, s->st_value, (*found)->base);
     }
 
@@ -693,7 +664,7 @@ static int open_library_on_path(const char *name, const char *const paths[]) {
 }
 
 static int open_library(const char *name) {
-    DL_ERR("[ loading %s ]", name);
+    DL_DBG("[ loading ......                               %s ]", name);
 
     // If the name contains a slash, we should attempt to open it directly and not search the paths.
     if (strchr(name, '/') != NULL) {
@@ -764,7 +735,6 @@ static soinfo *find_library_internal(const char *name) {
     if (name == NULL) {
         return somain;
     }
-
     soinfo *si = find_loaded_library(name);
     if (si != NULL) {
         if (si->flags & FLAG_LINKED) {
@@ -773,21 +743,21 @@ static soinfo *find_library_internal(const char *name) {
         DL_ERR("OOPS: recursive link to \"%s\"", si->name);
         return NULL;
     }
-
     DL_DBG("[ '%s' has not been loaded yet.  Locating...]", name);
     si = load_library(name);
     if (si == NULL) {
+        DL_DBG("%s,%d", __FUNCTION__, __LINE__);
         return NULL;
     }
-
+    DL_DBG("[ '%s'                           has been loaded yet]", name);
     // At this point we know that whatever is loaded @ base is a valid ELF
     // shared library whose segments are properly mapped in.
-    DL_DBG("[ init_library base=0x%08x sz=0x%08x name='%s' ]",
+    DL_DBG("[ init_library base=0x%08x size=0x%08x name='%s' ]",
            si->base, si->size, si->name);
-
     if (!soinfo_link_image(si)) {
         munmap(reinterpret_cast<void *>(si->base), si->size);
         soinfo_free(si);
+        DL_DBG("%s,%d", __FUNCTION__, __LINE__);
         return NULL;
     }
 
@@ -816,6 +786,10 @@ static int soinfo_unload(soinfo *si) {
         }
 
         munmap(reinterpret_cast<void *>(si->base), si->size);
+        DL_ERR("munmap %s [MEM][0x%x : 0x%x]", si->name, (int) (si->base),
+               (int) (si->base) + si->size);
+        TV_ERR("munmap %s [MEM][0x%x : 0x%x]", si->name, (int) (si->base),
+               (int) (si->base) + si->size);
         //notify_gdb_of_unload(si);
         soinfo_free(si);
         si->ref_count = 0;
@@ -838,6 +812,8 @@ soinfo *do_dlopen(const char *name, int flags) {
         si->CallConstructors();
     }
     set_soinfo_pool_protection(PROT_READ);
+
+    //DL_ERR("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
     return si;
 }
 
@@ -852,6 +828,8 @@ int do_dlclose(soinfo *si) {
  * ideal. They should probably be either uint32_t, Elf32_Addr, or unsigned
  * long.
  */
+
+
 static int soinfo_relocate(soinfo *si, Elf32_Rel *rel, unsigned count,
                            soinfo *needed[]) {
     Elf32_Sym *symtab = si->symtab;
@@ -859,6 +837,10 @@ static int soinfo_relocate(soinfo *si, Elf32_Rel *rel, unsigned count,
     Elf32_Sym *s;
     Elf32_Rel *start = rel;
     soinfo *lsi;
+    DL_ERR("[%s][0x%x] = strtab [0x%x] = symtab ", si->name,
+           GETOFFSET(strtab), GETOFFSET(symtab));
+    DL_ERR("relocate  for  plt_rel = [%s][0x%x plt_rel_count = 0x%x]", si->name,
+           GETOFFSET(start), count);
 
     for (size_t idx = 0; idx < count; ++idx, ++rel) {
         unsigned type = ELF32_R_TYPE(rel->r_info);
@@ -867,12 +849,17 @@ static int soinfo_relocate(soinfo *si, Elf32_Rel *rel, unsigned count,
         Elf32_Addr sym_addr = 0;
         char *sym_name = NULL;
 
-        DL_ERR("Processing '%s' relocation at index %d", si->name, idx);
+        //DL_ERR("Processing '%s' relocation at index %d", si->name, idx);
+//        DL_ERR("[FILE][0x%x] rel->r_offset 0x%x type 0x%x sym 0x%x ", GETOFFSET(rel),
+//               rel->r_offset, type, sym);
         if (type == 0) { // R_*_NONE
             continue;
         }
         if (sym != 0) {
             sym_name = (char *) (strtab + symtab[sym].st_name);
+//            DL_ERR("lookup %s = strtab + (symtab + sym  x (%d) = 0x%x)", sym_name,
+//            /*GETOFFSET(strtab), GETOFFSET(symtab), sym,*/ sizeof(Elf32_Sym),
+//                   symtab[sym].st_name);
             s = soinfo_do_lookup(si, sym_name, &lsi, needed);
             if (s == NULL) {
                 /* We only allow an undefined symbol if this is a weak
@@ -881,7 +868,7 @@ static int soinfo_relocate(soinfo *si, Elf32_Rel *rel, unsigned count,
                 if (ELF32_ST_BIND(s->st_info) != STB_WEAK) {
                     DL_ERR("cannot locate symbol \"%s\" referenced by \"%s\"...", sym_name,
                            si->name);
-                    return -1;
+                    return 0;//-1;
                 }
 
                 /* IHI0044C AAELF 4.5.1.1:
@@ -900,19 +887,19 @@ static int soinfo_relocate(soinfo *si, Elf32_Rel *rel, unsigned count,
                 switch (type) {
 #if defined(ANDROID_ARM_LINKER)
                     case R_ARM_JUMP_SLOT:
-                case R_ARM_GLOB_DAT:
-                case R_ARM_ABS32:
-                case R_ARM_RELATIVE:    /* Don't care. */
+                    case R_ARM_GLOB_DAT:
+                    case R_ARM_ABS32:
+                    case R_ARM_RELATIVE:    /* Don't care. */
 #elif defined(ANDROID_X86_LINKER)
-                    case R_386_JMP_SLOT:
-                case R_386_GLOB_DAT:
-                case R_386_32:
-                case R_386_RELATIVE:    /* Dont' care. */
+                        case R_386_JMP_SLOT:
+                    case R_386_GLOB_DAT:
+                    case R_386_32:
+                    case R_386_RELATIVE:    /* Dont' care. */
 #endif /* ANDROID_*_LINKER */
-                    /* sym_addr was initialized to be zero above or relocation
-                       code below does not care about value of sym_addr.
-                       No need to do anything.  */
-                    break;
+                        /* sym_addr was initialized to be zero above or relocation
+                           code below does not care about value of sym_addr.
+                           No need to do anything.  */
+                        break;
 
 #if defined(ANDROID_X86_LINKER)
                     case R_386_PC32:
@@ -922,8 +909,8 @@ static int soinfo_relocate(soinfo *si, Elf32_Rel *rel, unsigned count,
 
 #if defined(ANDROID_ARM_LINKER)
                     case R_ARM_COPY:
-                    /* Fall through.  Can't really copy if weak symbol is
-                       not found in run-time.  */
+                        /* Fall through.  Can't really copy if weak symbol is
+                           not found in run-time.  */
 #endif /* ANDROID_ARM_LINKER */
                     default:
                         DL_ERR("unknown weak reloc type %d @ %p (%d)",
@@ -953,30 +940,30 @@ static int soinfo_relocate(soinfo *si, Elf32_Rel *rel, unsigned count,
         switch (type) {
 #if defined(ANDROID_ARM_LINKER)
             case R_ARM_JUMP_SLOT:
-            count_relocation(kRelocAbsolute);
-            MARK(rel->r_offset);
-            TRACE_TYPE(RELO, "RELO JMP_SLOT %08x <- %08x %s", reloc, sym_addr, sym_name);
-            *reinterpret_cast<Elf32_Addr*>(reloc) = sym_addr;
-            break;
-        case R_ARM_GLOB_DAT:
-            count_relocation(kRelocAbsolute);
-            MARK(rel->r_offset);
-            TRACE_TYPE(RELO, "RELO GLOB_DAT %08x <- %08x %s", reloc, sym_addr, sym_name);
-            *reinterpret_cast<Elf32_Addr*>(reloc) = sym_addr;
-            break;
-        case R_ARM_ABS32:
-            count_relocation(kRelocAbsolute);
-            MARK(rel->r_offset);
-            TRACE_TYPE(RELO, "RELO ABS %08x <- %08x %s", reloc, sym_addr, sym_name);
-            *reinterpret_cast<Elf32_Addr*>(reloc) += sym_addr;
-            break;
-        case R_ARM_REL32:
-            count_relocation(kRelocRelative);
-            MARK(rel->r_offset);
-            TRACE_TYPE(RELO, "RELO REL32 %08x <- %08x - %08x %s",
-                       reloc, sym_addr, rel->r_offset, sym_name);
-            *reinterpret_cast<Elf32_Addr*>(reloc) += sym_addr - rel->r_offset;
-            break;
+                count_relocation(kRelocAbsolute);
+                MARK(rel->r_offset);
+//                DL_ERR("RELO JMP_SLOT %08x <- %08x %s", reloc, sym_addr, sym_name);
+                *reinterpret_cast<Elf32_Addr *>(reloc) = sym_addr;
+                break;
+            case R_ARM_GLOB_DAT:
+                count_relocation(kRelocAbsolute);
+                MARK(rel->r_offset);
+//                DL_ERR("RELO GLOB_DAT %08x <- %08x %s", reloc, sym_addr, sym_name);
+                *reinterpret_cast<Elf32_Addr *>(reloc) = sym_addr;
+                break;
+            case R_ARM_ABS32:
+                count_relocation(kRelocAbsolute);
+                MARK(rel->r_offset);
+//                DL_ERR("RELO ABS %08x <- %08x %s", reloc, sym_addr, sym_name);
+                *reinterpret_cast<Elf32_Addr *>(reloc) += sym_addr;
+                break;
+            case R_ARM_REL32:
+                count_relocation(kRelocRelative);
+                MARK(rel->r_offset);
+//                DL_ERR("RELO REL32 %08x <- %08x - %08x %s",
+//                       reloc, sym_addr, rel->r_offset, sym_name);
+                *reinterpret_cast<Elf32_Addr *>(reloc) += sym_addr - rel->r_offset;
+                break;
 #elif defined(ANDROID_X86_LINKER)
             case R_386_JMP_SLOT:
             count_relocation(kRelocAbsolute);
@@ -1007,31 +994,31 @@ static int soinfo_relocate(soinfo *si, Elf32_Rel *rel, unsigned count,
 #if defined(ANDROID_ARM_LINKER)
             case R_ARM_RELATIVE:
 #elif defined(ANDROID_X86_LINKER)
-            case R_386_RELATIVE:
+                case R_386_RELATIVE:
 #endif /* ANDROID_*_LINKER */
-            count_relocation(kRelocRelative);
-            MARK(rel->r_offset);
-            if (sym) {
-                DL_ERR("odd RELATIVE form...");
-                return -1;
-            }
-            DL_ERR("RELO RELATIVE %08x <- +%08x", reloc, si->base);
-            *reinterpret_cast<Elf32_Addr *>(reloc) += si->base;
-            break;
+                count_relocation(kRelocRelative);
+                MARK(rel->r_offset);
+                if (sym) {
+                    DL_ERR("odd RELATIVE form...");
+                    return -1;
+                }
+//                DL_ERR("RELO RELATIVE %08x <- +%08x", reloc, si->base);
+                *reinterpret_cast<Elf32_Addr *>(reloc) += si->base;
+                break;
 
 #if defined(ANDROID_X86_LINKER)
             case R_386_32:
             count_relocation(kRelocRelative);
             MARK(rel->r_offset);
 
-            TRACE_TYPE(RELO, "RELO R_386_32 %08x <- +%08x %s", reloc, sym_addr, sym_name);
+            DL_ERR(RELO, "RELO R_386_32 %08x <- +%08x %s", reloc, sym_addr, sym_name);
             *reinterpret_cast<Elf32_Addr*>(reloc) += sym_addr;
             break;
 
         case R_386_PC32:
             count_relocation(kRelocRelative);
             MARK(rel->r_offset);
-            TRACE_TYPE(RELO, "RELO R_386_PC32 %08x <- +%08x (%08x - %08x) %s",
+            DL_ERR(RELO, "RELO R_386_PC32 %08x <- +%08x (%08x - %08x) %s",
                        reloc, (sym_addr - reloc), sym_addr, reloc, sym_name);
             *reinterpret_cast<Elf32_Addr*>(reloc) += (sym_addr - reloc);
             break;
@@ -1039,47 +1026,47 @@ static int soinfo_relocate(soinfo *si, Elf32_Rel *rel, unsigned count,
 
 #ifdef ANDROID_ARM_LINKER
             case R_ARM_COPY:
-            if ((si->flags & FLAG_EXE) == 0) {
-                /*
-                 * http://infocenter.arm.com/help/topic/com.arm.doc.ihi0044d/IHI0044D_aaelf.pdf
-                 *
-                 * Section 4.7.1.10 "Dynamic relocations"
-                 * R_ARM_COPY may only appear in executable objects where e_type is
-                 * set to ET_EXEC.
-                 *
-                 * TODO: FLAG_EXE is set for both ET_DYN and ET_EXEC executables.
-                 * We should explicitly disallow ET_DYN executables from having
-                 * R_ARM_COPY relocations.
-                 */
-                DL_ERR("%s R_ARM_COPY relocations only supported for ET_EXEC", si->name);
-                return -1;
-            }
-            count_relocation(kRelocCopy);
-            MARK(rel->r_offset);
-            TRACE_TYPE(RELO, "RELO %08x <- %d @ %08x %s", reloc, s->st_size, sym_addr, sym_name);
-            if (reloc == sym_addr) {
-                Elf32_Sym *src = soinfo_do_lookup(NULL, sym_name, &lsi, needed);
+                if ((si->flags & FLAG_EXE) == 0) {
+                    /*
+                     * http://infocenter.arm.com/help/topic/com.arm.doc.ihi0044d/IHI0044D_aaelf.pdf
+                     *
+                     * Section 4.7.1.10 "Dynamic relocations"
+                     * R_ARM_COPY may only appear in executable objects where e_type is
+                     * set to ET_EXEC.
+                     *
+                     * TODO: FLAG_EXE is set for both ET_DYN and ET_EXEC executables.
+                     * We should explicitly disallow ET_DYN executables from having
+                     * R_ARM_COPY relocations.
+                     */
+                    DL_ERR("%s R_ARM_COPY relocations only supported for ET_EXEC", si->name);
+                    return -1;
+                }
+                count_relocation(kRelocCopy);
+                MARK(rel->r_offset);
+                DL_ERR("RELO %08x <- %d @ %08x %s", reloc, s->st_size, sym_addr, sym_name);
+                if (reloc == sym_addr) {
+                    Elf32_Sym *src = soinfo_do_lookup(NULL, sym_name, &lsi, needed);
 
-                if (src == NULL) {
-                    DL_ERR("%s R_ARM_COPY relocation source cannot be resolved", si->name);
+                    if (src == NULL) {
+                        DL_ERR("%s R_ARM_COPY relocation source cannot be resolved", si->name);
+                        return -1;
+                    }
+                    if (lsi->has_DT_SYMBOLIC) {
+                        DL_ERR("%s invalid R_ARM_COPY relocation against DT_SYMBOLIC shared "
+                                       "library %s (built with -Bsymbolic?)", si->name, lsi->name);
+                        return -1;
+                    }
+                    if (s->st_size < src->st_size) {
+                        DL_ERR("%s R_ARM_COPY relocation size mismatch (%d < %d)",
+                               si->name, s->st_size, src->st_size);
+                        return -1;
+                    }
+                    memcpy((void *) reloc, (void *) (src->st_value + lsi->load_bias), src->st_size);
+                } else {
+                    DL_ERR("%s R_ARM_COPY relocation target cannot be resolved", si->name);
                     return -1;
                 }
-                if (lsi->has_DT_SYMBOLIC) {
-                    DL_ERR("%s invalid R_ARM_COPY relocation against DT_SYMBOLIC shared "
-                           "library %s (built with -Bsymbolic?)", si->name, lsi->name);
-                    return -1;
-                }
-                if (s->st_size < src->st_size) {
-                    DL_ERR("%s R_ARM_COPY relocation size mismatch (%d < %d)",
-                           si->name, s->st_size, src->st_size);
-                    return -1;
-                }
-                memcpy((void*)reloc, (void*)(src->st_value + lsi->load_bias), src->st_size);
-            } else {
-                DL_ERR("%s R_ARM_COPY relocation target cannot be resolved", si->name);
-                return -1;
-            }
-            break;
+                break;
 #endif /* ANDROID_ARM_LINKER */
 
             default:
@@ -1165,7 +1152,7 @@ void soinfo::CallFunction(const char *function_name UNUSED, linker_function_t fu
     }
 
     DL_DBG("[ Calling %s @ %p for '%s' ]", function_name, function, name);
-    function();
+    //function();
     DL_DBG("[ Done calling %s @ %p for '%s' ]", function_name, function, name);
 
     // The function may have called dlopen(3) or dlclose(3), so we need to ensure our data structures
@@ -1180,6 +1167,7 @@ void soinfo::CallFunction2(const char *function_name UNUSED, linker_function_t f
 
     DL_DBG("[ Calling %s @ %p for '%s' ]", function_name, function, name);
     //function();
+
     DL_DBG("[ Done calling %s @ %p for '%s' ]", function_name, function, name);
 
     // The function may have called dlopen(3) or dlclose(3), so we need to ensure our data structures
@@ -1190,7 +1178,7 @@ void soinfo::CallFunction2(const char *function_name UNUSED, linker_function_t f
 void soinfo::CallPreInitConstructors() {
     // DT_PREINIT_ARRAY functions are called before any other constructors for executables,
     // but ignored in a shared library.
-    CallArray("DT_PREINIT_ARRAY", preinit_array, preinit_array_count, false);
+    CallArray2("DT_PREINIT_ARRAY", preinit_array, preinit_array_count, false);
 }
 
 void soinfo::CallConstructors() {
@@ -1229,18 +1217,18 @@ void soinfo::CallConstructors() {
     DL_DBG("\"%s\": calling constructors", name);
 
     // DT_INIT should be called before DT_INIT_ARRAY if both are present.
-    CallFunction("DT_INIT", init_func);
-    CallArray("DT_INIT_ARRAY", init_array, init_array_count, false);
+    CallFunction2("DT_INIT", init_func);
+    CallArray2("DT_INIT_ARRAY", init_array, init_array_count, false);
 }
 
 void soinfo::CallDestructors() {
     DL_DBG("\"%s\": calling destructors", name);
 
     // DT_FINI_ARRAY must be parsed in reverse order.
-    CallArray("DT_FINI_ARRAY", fini_array, fini_array_count, true);
+    CallArray2("DT_FINI_ARRAY", fini_array, fini_array_count, true);
 
     // DT_FINI should be called after DT_FINI_ARRAY if both are present.
-    CallFunction("DT_FINI", fini_func);
+    CallFunction2("DT_FINI", fini_func);
 }
 
 /* Force any of the closed stdin, stdout and stderr to be associated with
@@ -1344,27 +1332,30 @@ phdr_table_get_arm_exidx(const Elf32_Phdr *phdr_table,
 }
 
 
-void soinfo::CallArray2(const char *array_name UNUSED, linker_function_t *functions, size_t count,
+void soinfo::CallArray2(const char *array_name, linker_function_t *functions, size_t count,
                         bool reverse) {
     if (functions == NULL) {
         return;
     }
 
-    DL_DBG("[ Calling %s (size %d) @ %p for '%s' ]", array_name, count, functions, name);
+    //DL_DBG("[  %s (size %d) @ %p for '%s' ]", array_name, count, functions, name);
 
     int begin = reverse ? (count - 1) : 0;
     int end = reverse ? -1 : count;
     int step = reverse ? -1 : 1;
 
     for (int i = begin; i != end; i += step) {
-        DL_DBG("[ %s[%d] == %p   0x%08x]", array_name, i, functions[i], functions[i]);
+        //DL_DBG("[ %s[%d] == %p]", array_name, i, functions[i]);
         if (memcmp(name, "libjiagu_copy.so", 16) == 0) {
-            CallFunction2("function", functions[i]);
+            //CallFunction2("function", functions[i]);
+            TV_DBG("%s[%d]  0x%x ", array_name, i, functions[i]);
         }
+        DL_DBG("%s[%d]  0x%x ", array_name, i, functions[i]);
+
     }
 
 
-    DL_DBG("[ Done calling %s for '%s' ]", array_name, name);
+    //DL_DBG("[ Done calling %s for '%s' ]", array_name, name);
 }
 
 void soinfo::CallArray(const char *array_name UNUSED, linker_function_t *functions, size_t count,
@@ -1412,19 +1403,24 @@ static bool soinfo_link_image(soinfo *si) {
         return false;
     } else {
         if (!relocating_linker) {
-            DL_DBG("dynamic = %p", si->dynamic);
+            DL_DBG("dynamic = %p [%s][0x%x] dynamic_count = %d flag = 0x%x", si->dynamic, si->name,
+                   GETOFFSET(si->dynamic), dynamic_count, dynamic_flags);
         }
     }
 
 
-    (void) phdr_table_get_arm_exidx(phdr, phnum, base,
-                                    &si->ARM_exidx, &si->ARM_exidx_count);
+    int ret = phdr_table_get_arm_exidx(phdr, phnum, base,
+                                       &si->ARM_exidx, &si->ARM_exidx_count);
 
-
+    if (ret == 0) {
+        DL_DBG("has PT_ARM_EXIDX");
+    }
     // Extract useful information from dynamic section.
+    DL_ERR("for [%s][%p : %p]", si->name, GETOFFSET(si->dynamic),
+           dynamic_count * sizeof(Elf32_Dyn));
     uint32_t needed_count = 0;
     for (Elf32_Dyn *d = si->dynamic; d->d_tag != DT_NULL; ++d) {
-        DL_DBG("d = %p, d[0](tag) = 0x%08x d[1](val) = 0x%08x", d, d->d_tag, d->d_un.d_val);
+        //DL_DBG("[FILE][%p] tag = 0x%x val = 0x%x", GETOFFSET(d), d->d_tag, d->d_un.d_val);
         //DL_DBG("d = %p, d[0](tag) = %p d[1](val) = %p", d, d->d_tag, d->d_un.d_val);
         switch (d->d_tag) {
             case DT_HASH:
@@ -1432,12 +1428,21 @@ static bool soinfo_link_image(soinfo *si) {
                 si->nchain = ((unsigned *) (base + d->d_un.d_ptr))[1];
                 si->bucket = (unsigned *) (base + d->d_un.d_ptr + 8);
                 si->chain = (unsigned *) (base + d->d_un.d_ptr + 8 + si->nbucket * 4);
+                DL_ERR("tag = 0x%x val = 0x%x : nbucket 0x%x nchain 0x%x", d->d_tag, d->d_un.d_val,
+                       si->nbucket, si->nchain);
+                DL_ERR("[%s][0x%x] : bucket  [0x%x] : chain  = 0x%x + 0x%x x 4", si->name,
+                       d->d_un.d_val + 8, d->d_un.d_ptr + 8 + si->nbucket * 4, d->d_un.d_ptr + 8,
+                       si->nbucket);
                 break;
             case DT_STRTAB:
                 si->strtab = (const char *) (base + d->d_un.d_ptr);
+                DL_ERR("tag = 0x%x val = 0x%x strtab 0x%x  ", d->d_tag,
+                       d->d_un.d_val, d->d_un.d_ptr);
                 break;
             case DT_SYMTAB:
                 si->symtab = (Elf32_Sym *) (base + d->d_un.d_ptr);
+                DL_ERR("tag = 0x%x val = 0x%x symtab 0x%x ", d->d_tag, d->d_un.d_val,
+                       d->d_un.d_ptr);
                 break;
             case DT_PLTREL:
                 if (d->d_un.d_val != DT_REL) {
@@ -1447,19 +1452,28 @@ static bool soinfo_link_image(soinfo *si) {
                 break;
             case DT_JMPREL:
                 si->plt_rel = (Elf32_Rel *) (base + d->d_un.d_ptr);
+                DL_ERR("tag = 0x%x val = 0x%x plt_rel 0x%x ", d->d_tag,
+                       d->d_un.d_val, d->d_un.d_ptr);
                 break;
             case DT_PLTRELSZ:
                 si->plt_rel_count = d->d_un.d_val / sizeof(Elf32_Rel);
+                DL_ERR("tag = 0x%x val = 0x%x plt_rel_count 0x%x ", d->d_tag, d->d_un.d_val,
+                       si->plt_rel_count);
                 break;
             case DT_REL:
                 si->rel = (Elf32_Rel *) (base + d->d_un.d_ptr);
+                DL_ERR("tag = 0x%x val = 0x%x rel 0x%x  ", d->d_tag, d->d_un.d_val, d->d_un.d_ptr);
                 break;
             case DT_RELSZ:
                 si->rel_count = d->d_un.d_val / sizeof(Elf32_Rel);
+                DL_ERR("tag = 0x%x val = 0x%x rel_count 0x%x ", d->d_tag,
+                       d->d_un.d_val, si->rel_count);
                 break;
             case DT_PLTGOT:
                 /* Save this in case we decide to do lazy binding. We don't yet. */
                 si->plt_got = (unsigned *) (base + d->d_un.d_ptr);
+                DL_ERR("tag = 0x%x val = 0x%x plt_got 0x%x ", d->d_tag,
+                       d->d_un.d_val, d->d_un.d_ptr);
                 break;
             case DT_DEBUG:
                 // Set the DT_DEBUG entry to the address of _r_debug for GDB
@@ -1473,42 +1487,60 @@ static bool soinfo_link_image(soinfo *si) {
                 return false;
             case DT_INIT:
                 si->init_func = reinterpret_cast<linker_function_t>(base + d->d_un.d_ptr);
-                DL_DBG("%s constructors (DT_INIT) found at %p", si->name, si->init_func);
+                DL_ERR("tag = 0x%x val = 0x%x %s constructors (DT_INIT) found at %p", d->d_tag,
+                       d->d_un.d_val, si->name,
+                       si->init_func);
                 break;
             case DT_FINI:
                 si->fini_func = reinterpret_cast<linker_function_t>(base + d->d_un.d_ptr);
-                DL_DBG("%s destructors (DT_FINI) found at %p", si->name, si->fini_func);
+                DL_ERR("tag = 0x%x val = 0x%x %s destructors (DT_FINI) found at %p ", d->d_tag,
+                       d->d_un.d_val, si->name,
+                       si->fini_func);
                 break;
             case 25://DT_INIT_ARRAY:
                 si->init_array = reinterpret_cast<linker_function_t *>(base + d->d_un.d_ptr);
-                DL_DBG("%s constructors (DT_INIT_ARRAY) found at %p", si->name, si->init_array);
+                DL_ERR("tag = 0x%x val = 0x%x %s constructors (DT_INIT_ARRAY) found at %p(0x%x) ",
+                       d->d_tag, d->d_un.d_val, si->name, si->init_array, (d->d_un.d_ptr));
                 break;
             case 27://DT_INIT_ARRAYSZ:
                 si->init_array_count = ((unsigned) d->d_un.d_val) / sizeof(Elf32_Addr);
+                DL_ERR("tag = 0x%x val = 0x%x init_array_count = %d ", d->d_tag, d->d_un.d_val,
+                       si->init_array_count);
                 break;
             case 26://DT_FINI_ARRAY:
                 si->fini_array = reinterpret_cast<linker_function_t *>(base + d->d_un.d_ptr);
-                DL_DBG("%s destructors (DT_FINI_ARRAY) found at %p", si->name, si->fini_array);
+                DL_ERR("tag = 0x%x val = 0x%x %s destructors (DT_FINI_ARRAY) found at %p(0x%x) ",
+                       d->d_tag, d->d_un.d_val, si->name, si->fini_array, d->d_un.d_ptr);
                 break;
             case 28://DT_FINI_ARRAYSZ:
                 si->fini_array_count = ((unsigned) d->d_un.d_val) / sizeof(Elf32_Addr);
+                DL_ERR("tag = 0x%x val = 0x%x fini_array_count = %d ", d->d_tag, d->d_un.d_val,
+                       si->fini_array_count);
                 break;
             case DT_PREINIT_ARRAY:
                 si->preinit_array = reinterpret_cast<linker_function_t *>(base + d->d_un.d_ptr);
-                DL_DBG("%s constructors (DT_PREINIT_ARRAY) found at %p", si->name,
-                       si->preinit_array);
+                DL_ERR("tag = 0x%x val = 0x%x %s constructors (DT_PREINIT_ARRAY) found at %p(0x%x) ",
+                       d->d_tag, d->d_un.d_val, si->name, si->preinit_array, d->d_un.d_ptr);
                 break;
             case DT_PREINIT_ARRAYSZ:
                 si->preinit_array_count = ((unsigned) d->d_un.d_val) / sizeof(Elf32_Addr);
+                DL_ERR("tag = 0x%x val = 0x%x preinit_array_count = %d ", d->d_tag, d->d_un.d_val,
+                       si->preinit_array_count);
                 break;
             case DT_TEXTREL:
                 si->has_text_relocations = true;
+                DL_ERR("DT_TEXTREL");
                 break;
             case DT_SYMBOLIC:
                 si->has_DT_SYMBOLIC = true;
+                DL_ERR("has_DT_SYMBOLIC");
                 break;
             case DT_NEEDED:
                 ++needed_count;
+                const char *library_name = si->strtab + d->d_un.d_val;
+                DL_ERR("tag = 0x%x val = 0x%x %s needs (0x%x + 0x%x) = %s ", d->d_tag,
+                       d->d_un.d_val, si->name, GETOFFSET(si->strtab), d->d_un.d_val, library_name);
+                //DL_DBG("%d (DT_NEEDED) found ", needed_count);
                 break;
 #if defined DT_FLAGS
             // TODO: why is DT_FLAGS not defined?
@@ -1560,8 +1592,8 @@ static bool soinfo_link_image(soinfo *si) {
 
 
     si->CallArray2("DT_INIT_ARRAY", si->init_array, si->init_array_count, false);
-    DL_DBG("si->base = 0x%08x, si->strtab = %p, si->symtab = %p",
-           si->base, si->strtab, si->symtab);
+    DL_ERR("si->base = 0x%08x, strtab = %p, symtab = %p",
+           si->base, (int) si->strtab - (int) base, (int) si->symtab - (int) base);
 
     // Sanity checks.
     if (relocating_linker && needed_count != 0) {
@@ -1599,7 +1631,8 @@ static bool soinfo_link_image(soinfo *si) {
 
     soinfo **needed = (soinfo **) alloca((1 + needed_count) * sizeof(soinfo *));
     soinfo **pneeded = needed;
-
+#define NEED_LIB
+#ifdef NEED_LIB
     for (Elf32_Dyn *d = si->dynamic; d->d_tag != DT_NULL; ++d) {
         if (d->d_tag == DT_NEEDED) {
             const char *library_name = si->strtab + d->d_un.d_val;
@@ -1632,7 +1665,7 @@ static bool soinfo_link_image(soinfo *si) {
     }
 
     if (si->plt_rel != NULL) {
-        DL_DBG("[ relocating %s plt ]", si->name);
+        DL_DBG("[ relocating %s plt 0x%x 0x%x]", si->name, si->plt_rel, si->plt_rel_count);
         if (soinfo_relocate(si, si->plt_rel, si->plt_rel_count, needed)) {
             return false;
         }
@@ -1643,7 +1676,7 @@ static bool soinfo_link_image(soinfo *si) {
             return false;
         }
     }
-
+#endif
 #ifdef ANDROID_MIPS_LINKER
     if (!mips_relocate_got(si, needed)) {
         return false;

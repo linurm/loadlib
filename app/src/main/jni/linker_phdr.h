@@ -39,6 +39,7 @@
 #include <sys/exec_elf.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <android/log.h>
 // Returns the address of the page containing address 'x'.
 #define PAGE_START(x)  ((x) & PAGE_MASK)
 
@@ -127,7 +128,9 @@ int phdr_table_protect_gnu_relro(const Elf32_Phdr *phdr_table,
                                  int phdr_count,
                                  Elf32_Addr load_bias);
 
+#if 0
 #define LOG_BUF_SIZE 160
+
 inline void DL_DBG(const char *fmt, ...) {
     va_list ap;
     char buf[LOG_BUF_SIZE];
@@ -137,6 +140,7 @@ inline void DL_DBG(const char *fmt, ...) {
     va_end(ap);
     setTextView((unsigned char *) buf);
 }
+
 inline void DL_ERR(const char *fmt, ...) {
     va_list ap;
     char buf[LOG_BUF_SIZE];
@@ -147,24 +151,38 @@ inline void DL_ERR(const char *fmt, ...) {
     setTextView((unsigned char *) buf);
 }
 
-#define DBG_PRINT(fmt...) \
-    D_PRINT(fmt)
+#else
+#define DL_ERR(...) \
+    __android_log_print(ANDROID_LOG_ERROR, "keymatch", __VA_ARGS__)
+#define DL_DBG(...) \
+    __android_log_print(ANDROID_LOG_DEBUG, "keymatch", __VA_ARGS__)
 
-#define DL_PRINT(...) \
-    DBG_PRINT( __VA_ARGS__)
+#define LOG_BUF_SIZE 160
 
-#define DL_DBG2(fmt, ...)\
-    DL_PRINT("debug: %s " fmt, ## __VA_ARGS__)
-#define DL_ERR2(fmt, ...)\
-    DL_PRINT("error: %s " fmt, ## __VA_ARGS__)
+inline void TV_DBG(const char *fmt, ...) {
+    va_list ap;
+    char buf[LOG_BUF_SIZE];
+    memset(buf, 0, LOG_BUF_SIZE);
+    va_start(ap, fmt);
+    vsnprintf(buf, LOG_BUF_SIZE, fmt, ap);
+    va_end(ap);
+    setTextView((unsigned char *) buf);
+}
 
+inline void TV_ERR(const char *fmt, ...) {
+    va_list ap;
+    char buf[LOG_BUF_SIZE];
+    memset(buf, 0, LOG_BUF_SIZE);
+    va_start(ap, fmt);
+    vsnprintf(buf, LOG_BUF_SIZE, fmt, ap);
+    va_end(ap);
+    setTextView((unsigned char *) buf);
+}
 
-#define TAG    "JNI" // 这个是自定义的LOG的标识
+#endif
 
-//#define DL_DBG(...)  __android_log_print(ANDROID_LOG_DEBUG,TAG,__VA_ARGS__) // 定义LOGD类型
-//#define DL_ERR(...)  __android_log_print(ANDROID_LOG_ERROR,TAG,__VA_ARGS__) // 定义LOGD类型
-//#define DL_DBG(...)  __func_print(__VA_ARGS__) // 定义LOGD类型
-//#define DL_ERR(...)  __func_print(__VA_ARGS__) // 定义LOGD类型
+#define GETOFFSET(memaddr) ((int) memaddr) - ((int) (si->base))
+
 int phdr_table_get_arm_exidx(const Elf32_Phdr *phdr_table,
                              int phdr_count,
                              Elf32_Addr load_bias,

@@ -4,7 +4,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:2.2.2'
+        classpath 'com.android.tools.build:gradle:2.2.3'
     }
 }
 apply plugin: 'android'
@@ -20,7 +20,7 @@ android {
        ndk {
             //moduleName "Loadlib"
             ldLibs "log", "z", "m", "dl"
-            cFlags "-DZF"
+            cFlags  "-DANDROID_ARM_LINKER"
             abiFilters "armeabi-v7a"
         }
         minSdkVersion 19

@@ -20,6 +20,7 @@ add_library( # Sets the name of the library.
              # file are automatically included.
              src/main/jni/zybornit_loadlib_LoadLibrary.cpp
              src/main/jni/linker.cpp
+             src/main/jni/dlfcn.cpp
              src/main/jni/libc_logging.cpp
               src/main/jni/linker_phdr.cpp)
 
