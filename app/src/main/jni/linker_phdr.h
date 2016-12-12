@@ -90,6 +90,9 @@ private:
 
     bool CheckPhdr(Elf32_Addr);
 
+    void DisplayMmap(const char *name_, unsigned int f_start, unsigned int f_end,
+                     unsigned int m_start, unsigned int m_end);
+
     const char *name_;
     int fd_;
 
@@ -167,6 +170,7 @@ inline void TV_DBG(const char *fmt, ...) {
     vsnprintf(buf, LOG_BUF_SIZE, fmt, ap);
     va_end(ap);
     setTextView((unsigned char *) buf);
+    DL_DBG("%s", buf);
 }
 
 inline void TV_ERR(const char *fmt, ...) {
@@ -177,6 +181,7 @@ inline void TV_ERR(const char *fmt, ...) {
     vsnprintf(buf, LOG_BUF_SIZE, fmt, ap);
     va_end(ap);
     setTextView((unsigned char *) buf);
+    DL_ERR("%s", buf);
 }
 
 #endif

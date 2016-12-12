@@ -57,17 +57,6 @@ void do_android_update_LD_LIBRARY_PATH(const char *ld_library_path) {
 }
 
 
-#define ELF32_SYM_INITIALIZER(name_offset, value, shndx) \
-    { name_offset, \
-      reinterpret_cast<Elf32_Addr>(reinterpret_cast<void*>(value)), \
-      /* st_size */ 0, \
-      (shndx == 0) ? 0 : (STB_GLOBAL << 4), \
-      /* st_other */ 0, \
-      shndx }
-
-static unsigned gLibDlBuckets[1] = {1};
-static unsigned gLibDlChains[8] = {0, 2, 3, 4, 5, 6, 7, 0};
-
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 /* >>> IMPORTANT NOTE - READ ME BEFORE MODIFYING <<<
@@ -756,6 +745,9 @@ static soinfo *find_library_internal(const char *name) {
            si->base, si->size, si->name);
     if (!soinfo_link_image(si)) {
         munmap(reinterpret_cast<void *>(si->base), si->size);
+        TV_ERR("munmap soinfo fail %s [MEM][0x%x - 0x%x]", si->name,
+               reinterpret_cast<void *>(si->base),
+               (int) (si->base) + si->size);
         soinfo_free(si);
         DL_DBG("%s,%d", __FUNCTION__, __LINE__);
         return NULL;
@@ -786,10 +778,9 @@ static int soinfo_unload(soinfo *si) {
         }
 
         munmap(reinterpret_cast<void *>(si->base), si->size);
-        DL_ERR("munmap %s [MEM][0x%x : 0x%x]", si->name, (int) (si->base),
-               (int) (si->base) + si->size);
-        TV_ERR("munmap %s [MEM][0x%x : 0x%x]", si->name, (int) (si->base),
-               (int) (si->base) + si->size);
+
+        TV_ERR("munmap [MEM][0x%x - 0x%x] %s ", (int) (si->base), (int) (si->base) + si->size,
+               si->name);
         //notify_gdb_of_unload(si);
         soinfo_free(si);
         si->ref_count = 0;
@@ -801,15 +792,14 @@ static int soinfo_unload(soinfo *si) {
 }
 
 
-soinfo *do_dlopen(const char *name, int flags) {
+soinfo *do_zlopen(const char *name, int flags) {
     if ((flags & ~(RTLD_NOW | RTLD_LAZY | RTLD_LOCAL | RTLD_GLOBAL)) != 0) {
         DL_ERR("invalid flags to dlopen: %x", flags);
         return NULL;
     }
     set_soinfo_pool_protection(PROT_READ | PROT_WRITE);
     soinfo *si = find_library(name);
-    if (si != NULL) {
-        si->CallConstructors();
+    if (si != NULL) { ;//si->CallConstructors();
     }
     set_soinfo_pool_protection(PROT_READ);
 
@@ -817,7 +807,7 @@ soinfo *do_dlopen(const char *name, int flags) {
     return si;
 }
 
-int do_dlclose(soinfo *si) {
+int do_zlclose(soinfo *si) {
     set_soinfo_pool_protection(PROT_READ | PROT_WRITE);
     int result = soinfo_unload(si);
     set_soinfo_pool_protection(PROT_READ);
@@ -1346,11 +1336,11 @@ void soinfo::CallArray2(const char *array_name, linker_function_t *functions, si
 
     for (int i = begin; i != end; i += step) {
         //DL_DBG("[ %s[%d] == %p]", array_name, i, functions[i]);
-        if (memcmp(name, "libjiagu_copy.so", 16) == 0) {
-            //CallFunction2("function", functions[i]);
-            TV_DBG("%s[%d]  0x%x ", array_name, i, functions[i]);
-        }
-        DL_DBG("%s[%d]  0x%x ", array_name, i, functions[i]);
+        //if (memcmp(name, "libjiagu_copy.so", 16) == 0) {
+        //CallFunction2("function", functions[i]);
+        TV_DBG("[%s] %s[%d]  0x%x ", name, array_name, i, functions[i]);
+        //}
+        //DL_DBG("%s[%d]  0x%x ", array_name, i, functions[i]);
 
     }
 
@@ -1553,45 +1543,13 @@ static bool soinfo_link_image(soinfo *si) {
             }
             break;
 #endif
-#if defined(ANDROID_MIPS_LINKER)
-            case DT_STRSZ:
-        case DT_SYMENT:
-        case DT_RELENT:
-             break;
-        case DT_MIPS_RLD_MAP:
-            // Set the DT_MIPS_RLD_MAP entry to the address of _r_debug for GDB.
-            {
-              r_debug** dp = (r_debug**) d->d_un.d_ptr;
-              *dp = &_r_debug;
-            }
-            break;
-        case DT_MIPS_RLD_VERSION:
-        case DT_MIPS_FLAGS:
-        case DT_MIPS_BASE_ADDRESS:
-        case DT_MIPS_UNREFEXTNO:
-            break;
 
-        case DT_MIPS_SYMTABNO:
-            si->mips_symtabno = d->d_un.d_val;
-            break;
-
-        case DT_MIPS_LOCAL_GOTNO:
-            si->mips_local_gotno = d->d_un.d_val;
-            break;
-
-        case DT_MIPS_GOTSYM:
-            si->mips_gotsym = d->d_un.d_val;
-            break;
-
-        default:
-            DL_DBG("Unused DT entry: type 0x%08x arg 0x%08x", d->d_tag, d->d_un.d_val);
-            break;
-#endif
         }
     }
 
 
     si->CallArray2("DT_INIT_ARRAY", si->init_array, si->init_array_count, false);
+    si->CallArray2("DT_FNIT_ARRAY", si->fini_array, si->fini_array_count, false);
     DL_ERR("si->base = 0x%08x, strtab = %p, symtab = %p",
            si->base, (int) si->strtab - (int) base, (int) si->symtab - (int) base);
 

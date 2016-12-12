@@ -26,11 +26,11 @@ void test(const char *name) {
     //set_soinfo_pool_protection(PROT_READ);
 #else
 #define RTLD_LAZY 1
-    handle = do_dlopen(name, RTLD_LAZY);
+    handle = do_zlopen(name, RTLD_LAZY);
 
-    vonLoad = dlsym(handle, "JNI_OnLoad");
+    vonLoad = zlsym(handle, "JNI_OnLoad");
 
-    //do_dlclose((soinfo *) handle);
+    do_zlclose((soinfo *) handle);
 
 #endif
 }

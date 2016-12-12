@@ -176,9 +176,9 @@ private:
 #define DT_PREINIT_ARRAYSZ 33
 #endif
 
-soinfo *do_dlopen(const char *name, int flags);
+soinfo *do_zlopen(const char *name, int flags);
 
-int do_dlclose(soinfo *si);
+int do_zlclose(soinfo *si);
 
 Elf32_Sym *dlsym_linear_lookup(const char *name, soinfo **found, soinfo *start);
 

@@ -125,6 +125,7 @@ ElfReader::~ElfReader() {
     }
     if (phdr_mmap_ != NULL) {
         munmap(phdr_mmap_, phdr_size_);
+        //TV_ERR("munmap hd %s [MEM][0x%x - 0x%x]", name_, phdr_mmap_, (int)phdr_mmap_ + phdr_size_);
     }
 }
 
@@ -178,10 +179,15 @@ bool ElfReader::VerifyElfHeader() {
         DL_ERR("\"%s\" has unexpected e_version: %d", name_, header_.e_version);
         return false;
     }
-
     DL_ERR("VerifyElfHeader %s", name_);
-
     return true;
+}
+
+void ElfReader::DisplayMmap(const char *name_, unsigned int f_start, unsigned int f_end,
+                            unsigned int m_start, unsigned int m_end) {
+    TV_ERR("| 0x%08x       0x%08x|", m_start, f_start);
+    TV_ERR("|");
+    TV_ERR("| 0x%08x       0x%08x|", m_end, f_end);
 }
 
 // Loads the program header table from an ELF file into a read-only private
@@ -214,22 +220,15 @@ bool ElfReader::ReadProgramHeader() {
     phdr_mmap_ = mmap_result;
     phdr_table_ = reinterpret_cast<Elf32_Phdr *>(reinterpret_cast<char *>(mmap_result) +
                                                  page_offset);
-    DL_ERR("[MEM][0x%x --- 0x%x]  <=====   [%s][0 : 0x%x]  program header", mmap_result,
-           (((int) phdr_size_) + ((int) mmap_result)), name_, phdr_size_);
-    TV_ERR("[MEM][0x%x --- 0x%x]  <=====   [%s][0 : 0x%x]  program header", mmap_result,
-           (((int) phdr_size_) + ((int) mmap_result)), name_, phdr_size_);
 
-    DL_ERR("mmap    %s", name_);
-    DL_ERR("|0x08%x ----- 0x%08x|", phdr_mmap_, page_min);
-    DL_ERR("|                          |");
-    DL_ERR("|                          |");
-    DL_ERR("|0x08%x ----- 0x%08x|", (((int) phdr_size_) + ((int) mmap_result)),
-           page_min + phdr_size_);
-    TV_ERR("mmap    %s", name_);
-    TV_ERR("|0x08%x ----- 0x%08x|", phdr_mmap_, page_min);
-    TV_ERR("|                                                             ");
-    TV_ERR("|0x08%x ----- 0x%08x|", (((int) phdr_size_) + ((int) mmap_result)),
-           page_min + phdr_size_);
+//    TV_ERR("|------------------------------");
+//    TV_ERR("| %s ", name_);
+//    TV_ERR("| program header");
+//    TV_ERR("| mem       <====     file");
+//    DisplayMmap(name_, page_min, page_min + phdr_size_, (int) phdr_mmap_,
+//                (((int) phdr_size_) + ((int) mmap_result)));
+//    TV_ERR("|------------------------------");
+//    TV_ERR(" ");
     DL_ERR("phdr_table_ = 0x%x", (unsigned int) phdr_table_);
     return true;
 }
@@ -286,9 +285,9 @@ size_t phdr_table_get_load_size(const Elf32_Phdr *phdr_table,
     for (size_t i = 0; i < phdr_count; ++i) {
         const Elf32_Phdr *phdr = &phdr_table[i];
 
-        DL_ERR("PH  %-10s  [FILE][0x%05x : 0x%05x]   [MEM][0x%05x : 0x%05x]",
+        DL_ERR("PH %-10s [FILE][0x%05x : 0x%05x] [MEM][0x%05x : 0x%05x] 0x%x",
                getPTType(phdr->p_type), phdr->p_offset, phdr->p_filesz, phdr->p_vaddr,
-               phdr->p_memsz);
+               phdr->p_memsz, phdr->p_flags);
         //        DL_ERR("PH  0x%03X  [FILE][0x%x : 0x%x]   [MEM][0x%x   0x%x]   0x%x   0x%x   0x%x",
 //               phdr->p_type, phdr->p_offset, phdr->p_vaddr, phdr->p_paddr, phdr->p_filesz,
 //               phdr->p_memsz, phdr->p_flags, phdr->p_align);
@@ -363,6 +362,10 @@ bool ElfReader::ReserveAddressSpace() {
 // TODO: assert assumption.
 bool ElfReader::LoadSegments() {
     DL_ERR("++++++++++++++++++++++++++++++++++++   LoadSegments");
+    TV_ERR("|------------------------------------------------------------");
+    TV_ERR("|                         %s ", name_);
+    TV_ERR("| PT_LOAD");
+    TV_ERR("| mem       <====     file");
     for (size_t i = 0; i < phdr_num_; ++i) {
         const Elf32_Phdr *phdr = &phdr_table_[i];
 
@@ -372,59 +375,33 @@ bool ElfReader::LoadSegments() {
         // Segment addresses in memory.
         Elf32_Addr seg_start = phdr->p_vaddr + load_bias_;
         Elf32_Addr seg_end = seg_start + phdr->p_memsz;
-//        DL_ERR("[VADDR]:[0x%x : 0x%x]  + 0x%x", phdr->p_vaddr, phdr->p_memsz, load_bias_);
-        //+++++++++++++++phdr->p_vaddr = 0x0002a5d8 phdr->p_memsz = 0x00068b24
-        //readelf -l
-        //DL_ERR("seg_start = 0x%x seg_end = 0x%x", seg_start, seg_end);
-        //seg_start = 0x76b965d8 seg_end = 0x76bff0fc
-        //load_bias_   in mem segment
 
         Elf32_Addr seg_page_start = PAGE_START(seg_start);
         Elf32_Addr seg_page_end = PAGE_END(seg_end);
-        /*DL_ERR("-[SEG]:[0x%x : 0x%x] - [PAGE]:[0x%x - 0x%x]", seg_start, phdr->p_memsz, seg_page_start,
-               seg_page_end);*/
-        //DL_ERR("seg_page_start = 0x%x seg_page_end = 0x%x", seg_page_start, seg_page_end);
-        //seg_page_start = 0x76b96000 seg_page_end = 0x76c00000
-        //change to page
 
         Elf32_Addr seg_file_end = seg_start + phdr->p_filesz;
-        //DL_ERR("-[SEG]:[0x%x] + 0x%x = 0x%x", seg_start, phdr->p_filesz, seg_file_end);
-        //DL_ERR("seg_file_end = 0x%x phdr->p_filesz = 0x%x", seg_file_end, phdr->p_filesz);
-        //seg_file_end = 0x76bd82c4 phdr->p_filesz = 0x00041cec
-        //file end in mem
 
         // File offsets.
         Elf32_Addr file_start = phdr->p_offset;
         Elf32_Addr file_end = file_start + phdr->p_filesz;
-        //DL_ERR("file_start = 0x%x file_end = 0x%x", file_start, file_end);
-        //file_start = 0x000295d8 file_end = 0x0006b2c4
 
         //readelf -l
         Elf32_Addr file_page_start = PAGE_START(file_start);
         Elf32_Addr file_length = file_end - file_page_start;
 
-        /*DL_ERR("[FILE][0x%x - 0x%x]  -  [PAGE]:[0x%x : 0x%x]", file_start, file_end,
-               file_page_start,
-               file_length);*/
-        //DL_ERR("file_page_start = 0x%x file_length = 0x%x", file_page_start, file_length);
-        //file_page_start = 0x00029000 file_length = 0x000422c4
         // change to page
         if (file_length != 0) {
-            void *seg_addr = mmap((void *) seg_page_start,
-                                  file_length,
-                                  PFLAGS_TO_PROT(phdr->p_flags),
-                                  MAP_FIXED | MAP_PRIVATE,
-                                  fd_,
+            void *seg_addr = mmap((void *) seg_page_start, file_length,
+                                  PFLAGS_TO_PROT(phdr->p_flags), MAP_FIXED | MAP_PRIVATE, fd_,
                                   file_page_start);
             if (seg_addr == MAP_FAILED) {
                 DL_ERR("couldn't map \"%s\" segment %d: %s", name_, i, strerror(errno));
                 return false;
             }
-            DL_ERR("[MEM][0x%x : 0x%x]  <=====  [%s][0x%x : 0x%x]", (unsigned int) seg_addr,
-                   ((unsigned int) file_length), name_, file_page_start, file_length);
-            TV_ERR("[MEM][0x%x : 0x%x]  <=====  [%s][0x%x : 0x%x]", (unsigned int) seg_addr,
-                   ((unsigned int) file_length), name_, file_page_start, file_length);
-            //mmap seg_addr = 0x76b96000 file_length = 0x000422c4
+            DisplayMmap(name_, file_page_start, file_page_start + file_length,
+                        (unsigned int) seg_addr,
+                        (unsigned int) seg_addr + ((unsigned int) file_length));
+
         }
 
         // if the segment is writable, and does not end on a page boundary,
@@ -432,10 +409,9 @@ bool ElfReader::LoadSegments() {
         if ((phdr->p_flags & PF_W) != 0 && PAGE_OFFSET(seg_file_end) >
                                            0) { ;
             memset((void *) seg_file_end, 0, PAGE_SIZE - PAGE_OFFSET(seg_file_end));
-            DL_ERR("[MEM][0x%x - 0x%x] clear 0", seg_file_end,
-                   seg_file_end + (PAGE_SIZE - PAGE_OFFSET(seg_file_end)));
-            TV_ERR("[MEM][0x%x - 0x%x] clear 0", seg_file_end,
-                   seg_file_end + (PAGE_SIZE - PAGE_OFFSET(seg_file_end)));
+            //TV_ERR("|0x%x  ", seg_file_end);
+            TV_ERR("| 00 00 00 00 ...");
+            TV_ERR("| 0x%x", seg_file_end + (PAGE_SIZE - PAGE_OFFSET(seg_file_end)));
         }
 
         Elf32_Addr file_page_end = PAGE_END(seg_file_end);
@@ -445,21 +421,22 @@ bool ElfReader::LoadSegments() {
         // between them. This is done by using a private anonymous
         // map for all extra pages.
         if (seg_page_end > file_page_end) {
-            void *zeromap = mmap((void *) file_page_end,
-                                 seg_page_end - file_page_end,
+            void *zeromap = mmap((void *) file_page_end, seg_page_end - file_page_end,
                                  PFLAGS_TO_PROT(phdr->p_flags),
-                                 MAP_FIXED | MAP_ANONYMOUS | MAP_PRIVATE,
-                                 -1,
-                                 0);
+                                 MAP_FIXED | MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
             if (zeromap == MAP_FAILED) {
                 DL_ERR("couldn't zero fill \"%s\" gap: %s", name_, strerror(errno));
                 return false;
             }
-//            DL_ERR("[MEM][0x%x : 0x%x] ===> [MEM][0x%x : 0x%x]", file_page_start,
-//                   file_length, (unsigned int) seg_addr,
-//                   ((unsigned int) seg_addr + (unsigned int) file_length));
+//            DL_ERR("[MEM][0x%x : 0x%x]", file_page_end,
+//                   seg_page_end);
+            //TV_ERR("|0x%x", file_page_end);
+            TV_ERR("| 00 00 00 00 ...");
+            TV_ERR("| 0x%x", seg_page_end);
         }
     }
+    TV_ERR("|------------------------------------------------------------");
+    TV_ERR(" ");
     return true;
 }
 

@@ -19,7 +19,7 @@ android {
     defaultConfig {
        ndk {
             //moduleName "Loadlib"
-            ldLibs "log", "z", "m", "dl"
+            ldLibs "log", "z", "m"
             cFlags  "-DANDROID_ARM_LINKER"
             abiFilters "armeabi-v7a"
         }
