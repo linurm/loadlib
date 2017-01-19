@@ -22,6 +22,7 @@ add_library( # Sets the name of the library.
              src/main/jni/linker.cpp
              src/main/jni/dlfcn.cpp
              src/main/jni/libc_logging.cpp
+             src/main/jni/demo.c
               src/main/jni/linker_phdr.cpp)
 
 # Searches for a specified prebuilt library and stores the path as a
