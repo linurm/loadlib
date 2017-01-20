@@ -144,7 +144,13 @@ static char getTargetFuncInfo(unsigned long base, const char *funcName, funcInfo
         __android_log_print(ANDROID_LOG_INFO, "JNITag", "Find index = %d\n", i);
         if (strcmp(dynstr + (funSym + i)->st_name, funcName) == 0) {
             flag = 0;
-            __android_log_print(ANDROID_LOG_INFO, "JNITag", "Find %s\n", funcName);
+            __android_log_print(ANDROID_LOG_INFO, "JNITag",
+                                "Find %s,0x%x, 0x%x, 0x%x, 0x%x, 0x%x\n", funcName,
+                                base, (funSym), (int *) (funSym + i) - (int *) base,
+                                (funSym + i)->st_name, (int *) dynstr - (int *) base);
+            __android_log_print(ANDROID_LOG_INFO, "JNITag",
+                                "Find %s,0x%x, 0x%x, 0x%x, 0x%x, 0x%x\n", funcName, base, (funSym),
+                                (funSym + i), (funSym + i)->st_name, dynstr);
             break;
         }
     }
