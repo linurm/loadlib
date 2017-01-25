@@ -14,7 +14,7 @@ typedef struct _funcInfo {
 } funcInfo;
 
 
-void init_getString() __attribute__((constructor));
+//void init_getString() __attribute__((constructor));
 
 static void print_debug(const char *msg) {
 #ifdef DEBUG
