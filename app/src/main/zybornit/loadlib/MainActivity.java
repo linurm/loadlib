@@ -3,11 +3,13 @@ package zybornit.loadlib;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.text.Editable;
@@ -27,6 +29,10 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import dalvik.system.DexClassLoader;
+import dalvik.system.PathClassLoader;
+import dynamic.interfaces.IDynamic;
+
 public class MainActivity extends Activity {
     public static final String FTP_UPLOAD_SUCCESS = "ftp文件上传成功";
     public static final String FTP_UPLOAD_FAIL = "ftp文件上传失败";
@@ -38,6 +44,7 @@ public class MainActivity extends Activity {
     public Handler handler;
     LoadLibrary llb = null;
     private String libso;
+    private IDynamic lib;
 
     static private void print(String msg) {
         Log.e("main", msg);
@@ -90,6 +97,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+
         tv = (TextView) findViewById(R.id.display_message);
         tv.setText("");
         tv.setText(tv.getText(), TextView.BufferType.EDITABLE);
@@ -104,10 +112,66 @@ public class MainActivity extends Activity {
             }
         });
         //test2(this, libso);
-        test2(libso);
-
+        //test2(libso);
+        test3();
         //listApp(this);
         //uploadFile(this, APPLIST);
+    }
+
+    void test3() {
+        /**使用DexClassLoader方式加载类*/
+        //dex压缩文件的路径(可以是apk,jar,zip格式)
+        String dexPath = Environment.getExternalStorageDirectory().toString() + File.separator + "Dynamic.apk";
+        //dex解压释放后的目录
+        //String dexOutputDir = getApplicationInfo().dataDir;
+        String dexOutputDirs = Environment.getExternalStorageDirectory().toString();
+        //定义DexClassLoader
+        //第一个参数：是dex压缩文件的路径
+        //第二个参数：是dex解压缩后存放的目录
+        //第三个参数：是C/C++依赖的本地库文件目录,可以为null
+        //第四个参数：是上一级的类加载器
+        //DexClassLoader cl = new DexClassLoader(dexPath, dexOutputDirs, null, getClassLoader());
+        Log.e(TAG, "dexPath: " + dexPath);
+        Log.e(TAG, "dexOutputDirs: " + dexOutputDirs);
+        if (true)
+            return;
+        /**使用PathClassLoader方法加载类*/
+        //创建一个意图，用来找到指定的apk：这里的"com.dynamic.impl是指定apk中在AndroidMainfest.xml文件中定义的<action name="com.dynamic.impl"/>
+        Intent intent = new Intent("dynamic.impl", null);
+        //获得包管理器
+        PackageManager pm = getPackageManager();
+        List<ResolveInfo> resolveinfoes = pm.queryIntentActivities(intent, 0);
+        //获得指定的activity的信息
+        ActivityInfo actInfo = resolveinfoes.get(0).activityInfo;
+        //获得apk的目录或者jar的目录
+        String apkPath = actInfo.applicationInfo.sourceDir;
+        Log.e(TAG, "apkPath: " + apkPath);
+        //native代码的目录
+        String libPath = actInfo.applicationInfo.nativeLibraryDir;
+        Log.e(TAG, "libPath: " + libPath);
+
+        //创建类加载器，把dex加载到虚拟机中
+        //第一个参数：是指定apk安装的路径，这个路径要注意只能是通过actInfo.applicationInfo.sourceDir来获取
+        //第二个参数：是C/C++依赖的本地库文件目录,可以为null
+        //第三个参数：是上一级的类加载器
+        PathClassLoader pcl = new PathClassLoader(apkPath, libPath, this.getClassLoader());
+        //加载类
+        try {
+            //com.dynamic.impl.Dynamic是动态类名
+            //使用DexClassLoader加载类
+            //Class libProviderClazz = cl.loadClass("com.dynamic.impl.Dynamic");
+            //使用PathClassLoader加载类
+            Class libProviderClazz = pcl.loadClass("com.dynamic.impl.Dynamic");
+            lib = (IDynamic) libProviderClazz.newInstance();
+            if (lib != null) {
+                lib.init(this);
+            }
+            if (lib != null) {
+                lib.showBanner();
+            }
+        } catch (Exception exception) {
+            exception.printStackTrace();
+        }
     }
 
     void scrollToFirst() {
