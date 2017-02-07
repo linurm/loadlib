@@ -1,1 +1,1 @@
-include ':app', ':Dynamic', ':dynamic.interfaces'
+include ':app', ':Dynamic', ':dynamic.interfaces', ':dexshell'
