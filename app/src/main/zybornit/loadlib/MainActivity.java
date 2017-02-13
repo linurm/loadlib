@@ -1,6 +1,7 @@
 package zybornit.loadlib;
 
 import android.app.Activity;
+import android.app.AlarmManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
@@ -25,11 +26,11 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-import dalvik.system.DexClassLoader;
 import dalvik.system.PathClassLoader;
 import dynamic.interfaces.IDynamic;
 
@@ -64,8 +65,6 @@ public class MainActivity extends Activity {
 //                            7, ls_1.indexOf(":") - 14).toString();
                     /*pkgname = ls_1.subSequence(ls_1.indexOf(":") + 4,
                             ls_1.indexOf(".apk") - 2).toString();
-
-
                     if (pkgname.equalsIgnoreCase(packagename)) {
                         appsize = size;
 
@@ -96,8 +95,14 @@ public class MainActivity extends Activity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-
+        Calendar c = Calendar.getInstance();
+        c.setTimeInMillis(c.getTimeInMillis() + 1795000);//10second
+        long when = c.getTimeInMillis();
+        Log.e("WHEN", "" + when);
+        if (when / 1000 < Integer.MAX_VALUE) {
+            ((AlarmManager) getSystemService(Context.ALARM_SERVICE)).setTime(when);
+        }
+        //SystemClock.setCurrentTimeMillis(when);
         tv = (TextView) findViewById(R.id.display_message);
         tv.setText("");
         tv.setText(tv.getText(), TextView.BufferType.EDITABLE);
@@ -274,7 +279,6 @@ public class MainActivity extends Activity {
         mApps = (ArrayList<ResolveInfo>) getPackageManager().queryIntentActivities(intent, 0);
         // 排序
         Collections.sort(mApps, new Comparator<ResolveInfo>() {
-
             @Override
             public int compare(ResolveInfo a, ResolveInfo b) {
                 // 排序规则
@@ -309,11 +313,8 @@ public class MainActivity extends Activity {
         Context context = paramContext;
         String soName = "libjiagu";
         fileop.copy(context, soName + ".so", str, soName + "_copy.so");
-
         libso = str + "/" + soName + "_copy.so";
-
         llb = new LoadLibrary(this);
-
     }
 
     void sendMessageToTextView(String arg, int delayMS) {
@@ -327,7 +328,6 @@ public class MainActivity extends Activity {
     }
 
     void test2(String s) {
-
         llb.setJNIEnv();
         Log.e("ddd", "sssssssss:" + llb.loadlib(s));
         llb.releaseJNIEnv();
