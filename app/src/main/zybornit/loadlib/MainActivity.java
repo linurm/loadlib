@@ -26,7 +26,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.Calendar;
+
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -95,13 +95,7 @@ public class MainActivity extends Activity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        Calendar c = Calendar.getInstance();
-        c.setTimeInMillis(c.getTimeInMillis() + 1795000);//10second
-        long when = c.getTimeInMillis();
-        Log.e("WHEN", "" + when);
-        if (when / 1000 < Integer.MAX_VALUE) {
-            ((AlarmManager) getSystemService(Context.ALARM_SERVICE)).setTime(when);
-        }
+
         //SystemClock.setCurrentTimeMillis(when);
         tv = (TextView) findViewById(R.id.display_message);
         tv.setText("");
