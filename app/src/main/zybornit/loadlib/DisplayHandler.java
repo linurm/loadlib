@@ -10,9 +10,10 @@ public final class DisplayHandler extends Handler {
     private final MainActivity mainActivity;
 
 
-    DisplayHandler(MainActivity mMainActivity){
+    DisplayHandler(MainActivity mMainActivity) {
         this.mainActivity = mMainActivity;
     }
+
     @Override
     public void handleMessage(Message message) {
         switch (message.what) {

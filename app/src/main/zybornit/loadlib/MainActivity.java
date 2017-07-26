@@ -1,7 +1,6 @@
 package zybornit.loadlib;
 
 import android.app.Activity;
-import android.app.AlarmManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
@@ -26,7 +25,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
-
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -89,6 +87,29 @@ public class MainActivity extends Activity {
             return null;
         }
         return appsize;
+    }
+
+    private void test(Context context) {
+        Intent intent = new Intent("err.action.MAIN2", null);
+        //获得包管理器
+        PackageManager pm = context.getPackageManager();
+        List<ResolveInfo> resolveinfoes = pm.queryIntentActivities(intent, 0);
+        //获得指定的activity的信息
+        ActivityInfo actInfo = resolveinfoes.get(0).activityInfo;
+
+        //获得包名
+        String pacageName = actInfo.packageName;
+        //获得apk的目录或者jar的目录
+        String apkPath = actInfo.applicationInfo.sourceDir;
+        //dex解压后的目录,注意，这个用宿主程序的目录，android中只允许程序读取写自己
+        //目录下的文件
+        String dexOutputDir = context.getApplicationInfo().dataDir;
+
+        //native代码的目录
+        String libPath = actInfo.applicationInfo.nativeLibraryDir;
+        Log.e("TAG", "" + apkPath);
+        Log.e("TAG", "" + dexOutputDir);
+        Log.e("TAG", "" + libPath);
     }
 
     @Override

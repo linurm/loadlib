@@ -24,6 +24,7 @@ public final class LoadLibrary {
     public native String loadlib(String name);
 
     public native void setJNIEnv();
+
     public native void releaseJNIEnv();
     //private native void
 
