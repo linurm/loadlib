@@ -26,7 +26,7 @@
  * SUCH DAMAGE.
  */
 
-#include <libc_logging.h> // Relative path so we can #include this .cpp file for testing.
+#include "libc_logging.h"// Relative path so we can #include this .cpp file for testing.
 
 
 #include <assert.h>

@@ -42,7 +42,8 @@ android {
     }
     externalNativeBuild {
         cmake {
-            path "CMakeLists.txt"
+            path "src/main/jni/CMakeLists.txt"
+            paht "src/main/jni/otherlib/CMakeLists.txt"
         }
     }
     productFlavors {

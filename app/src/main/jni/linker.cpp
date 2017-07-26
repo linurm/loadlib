@@ -39,6 +39,7 @@
 #include "linker_phdr.h"
 
 #include "libc_logging.h"
+#include <test.h>
 /* Assume average path length of 64 and max 8 paths */
 #define LDPATH_BUFSIZE 512
 #define LDPATH_MAX 8
@@ -243,6 +244,7 @@ static void set_soinfo_pool_protection(int protection) {
             abort(); // Can't happen.
         }
     }
+    testf();
 }
 
 static soinfo *soinfo_alloc(const char *name) {
