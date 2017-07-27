@@ -8,6 +8,7 @@ import android.util.Log;
 
 public final class LoadLibrary {
     static {
+//        System.loadLibrary("inject");
         System.loadLibrary("Loadlib");
     }
 

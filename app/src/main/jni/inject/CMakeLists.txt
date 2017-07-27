@@ -9,23 +9,23 @@ set(CMAKE_VERBOSE_MAKEFILE on)
 # You can define multiple libraries, and CMake builds it for you.
 # Gradle automatically packages shared libraries with your APK.
 
-add_library(test1
+add_library(inject
             SHARED
-            test1.c
+            inject.c
 )
 set(distribution_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../distribution)
 
-target_link_libraries(test1
-        log
-)
-set_target_properties(test1
+#target_link_libraries(inject
+#        log
+#)
+set_target_properties(inject
                       PROPERTIES
                       LIBRARY_OUTPUT_DIRECTORY
                       "${distribution_DIR}/lib/${ANDROID_ABI}")
-add_custom_command(TARGET test1 POST_BUILD
+add_custom_command(TARGET inject POST_BUILD
                    COMMAND "${CMAKE_COMMAND}" -E
-                   copy "${CMAKE_CURRENT_SOURCE_DIR}/test.h"
-                   "${distribution_DIR}/include/test.h"
+                   copy "${CMAKE_CURRENT_SOURCE_DIR}/inject.h"
+                   "${distribution_DIR}/include/inject.h"
 #                   **** the following 2 lines are for potential future debug purpose ****
 #                   COMMAND "${CMAKE_COMMAND}" -E
 #                   remove_directory "${CMAKE_CURRENT_BINARY_DIR}"

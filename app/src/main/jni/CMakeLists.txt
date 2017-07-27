@@ -8,7 +8,9 @@ cmake_minimum_required(VERSION 3.4.1)
 # or SHARED, and provides the relative paths to its source code.
 # You can define multiple libraries, and CMake builds it for you.
 # Gradle automatically packages shared libraries with your APK.
-#add_subdirectory(otherlib)
+add_subdirectory(inject)
+add_subdirectory(otherlib)
+
 
 
 set(distribution_DIR ${CMAKE_SOURCE_DIR}/distribution)
@@ -35,25 +37,28 @@ add_library(lib_test1 SHARED IMPORTED)
 set_target_properties(lib_test1 PROPERTIES IMPORTED_LOCATION
     ${distribution_DIR}/lib/${ANDROID_ABI}/libtest1.so)
 
+add_library(lib_inject SHARED IMPORTED)
+set_target_properties(lib_inject PROPERTIES IMPORTED_LOCATION
+    ${distribution_DIR}/lib/${ANDROID_ABI}/libinject.so)
+
+
 add_library( # Sets the name of the library.
              Loadlib
-
              # Sets the library as a shared library.
              SHARED
-
              # Provides a relative path to your source file(s).
              # Associated headers in the same location as their source
              # file are automatically included.
              zybornit_loadlib_LoadLibrary.cpp
              linker.cpp
              dlfcn.cpp
-             test.cpp
              libc_logging.cpp
              demo.c
               linker_phdr.cpp)
 
 target_include_directories(Loadlib PRIVATE
-                           ${distribution_DIR}/)
+                           ${distribution_DIR}/include)
+
 target_link_libraries( # Specifies the target library.
                      Loadlib
                        # Links the target library to the log library
@@ -62,5 +67,10 @@ target_link_libraries( # Specifies the target library.
                        #${test1-lib}
                        #test1
                        lib_test1
+                       lib_inject
                        )
 
+set_target_properties(Loadlib
+                      PROPERTIES
+                      LIBRARY_OUTPUT_DIRECTORY
+                      "${distribution_DIR}/lib/${ANDROID_ABI}")

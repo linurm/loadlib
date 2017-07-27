@@ -32,7 +32,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <elf.h>
-#include <sys/exec_elf.h>
+#include "sys/exec_elf.h"
 
 #include <link.h>
 

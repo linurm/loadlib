@@ -36,7 +36,7 @@
  */
 
 #include <stddef.h>
-#include <sys/exec_elf.h>
+#include "sys/exec_elf.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <android/log.h>
@@ -49,10 +49,13 @@
 // Returns the address of the next page after address 'x', unless 'x' is
 // itself at the start of a page.
 #define PAGE_END(x)    PAGE_START((x) + (PAGE_SIZE-1))
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 extern void setTextView(unsigned char *a);
+
 #ifdef __cplusplus
 }
 #endif

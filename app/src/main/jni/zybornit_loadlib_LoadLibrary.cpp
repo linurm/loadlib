@@ -5,7 +5,7 @@
 #include <jni.h>
 #include "linker_phdr.h"
 #include "linker.h"
-#include "dlfcn.h"
+#include "inject.h"
 //#include <android_runtime/AndroidRuntime.h>
 
 
@@ -14,10 +14,10 @@ extern "C" {
 #endif
 
 
-void test(const char *name) {
+void loadLibTest(const char *name) {
     void *handle;
     void *vonLoad;
-#if 0
+#if 1
     //set_soinfo_pool_protection(PROT_READ | PROT_WRITE);
     soinfo *si = find_library(name);
     if (si != NULL) {
@@ -99,7 +99,9 @@ JNICALL Java_zybornit_loadlib_LoadLibrary_loadlib(JNIEnv *env, jobject obj,
     //printf("C_str: %s \n", c_str);
     //DL_ERR("C_str: %s ", c_str);
     //DL_ERR("C_str");
-    test(c_str);
+    injectLib();
+
+    loadLibTest(c_str);
     sprintf(buff, "hello %s ", c_str);
     env->ReleaseStringUTFChars(j_str, c_str);
     jstring a = env->NewStringUTF(buff);

@@ -127,18 +127,19 @@ public class MainActivity extends Activity {
             @Override
             public void onClick(View view) {
                 tv.setText("");
-                test2(libso);
+                Log.e("ZTAG", "lib path: " + libso);
+                refreshLoad(libso);
 
             }
         });
-        //test2(this, libso);
-        //test2(libso);
-        test3();
+        //refreshLoad(this, libso);
+        //refreshLoad(libso);
+//        loadDex();
         //listApp(this);
         //uploadFile(this, APPLIST);
     }
 
-    void test3() {
+    void loadDex() {
         /**使用DexClassLoader方式加载类*/
         //dex压缩文件的路径(可以是apk,jar,zip格式)
         String dexPath = Environment.getExternalStorageDirectory().toString() + File.separator + "Dynamic.apk";
@@ -342,7 +343,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    void test2(String s) {
+    void refreshLoad(String s) {
         llb.setJNIEnv();
         Log.e("ddd", "sssssssss:" + llb.loadlib(s));
         llb.releaseJNIEnv();
