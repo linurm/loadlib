@@ -11,14 +11,19 @@
 #include <android/log.h>
 
 #define DL_ERR(...) \
-    __android_log_print(ANDROID_LOG_ERROR, "test", __VA_ARGS__)
+    __android_log_print(ANDROID_LOG_ERROR, "ZTAG", __VA_ARGS__)
 
+#define DL_DEBUG(...) \
+    __android_log_print(ANDROID_LOG_ERROR, "JTAG", __VA_ARGS__)
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-void testf();
-void testg();
+
+void testf(void);
+
+void testg(void);
+
 #ifdef __cplusplus
 }
 #endif

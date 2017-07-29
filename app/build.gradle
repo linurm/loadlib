@@ -15,13 +15,13 @@ android {
             moduleName "Loadlib"
 //            ldLibs "log", "z", "m"
 //            cFlags  "-DANDROID_ARM_LINKER"
-            abiFilters "armeabi-v7a"//,"arm64-v8a"//,"armeabi"
+            abiFilters "armeabi-v7a","armeabi"//,"arm64-v8a"//
         }
         externalNativeBuild {
             cmake {
                 arguments '-DANDROID_PLATFORM=android-19','-DANDROID_DEPRECATED_HEADERS=1',
                         '-DANDROID_TOOLCHAIN=clang', '-DANDROID_STL=gnustl_static'
-                targets 'test1','Loadlib'
+                targets 'test1','inject','Loadlib'
             }
         }
         minSdkVersion 19
@@ -35,7 +35,7 @@ android {
             aidl.srcDirs = ['src/main']
             res.srcDirs = ['src/main/res']
             assets.srcDirs = ['src/main/assets']
-            jniLibs.srcDirs = ['src/main/jni/distribution/lib']
+//            jniLibs.srcDirs = ['src/main/jni/distribution/lib']
             //jni.srcDirs = ['src/main/jni']//disable automatic ndk-build call
             //jni.srcDirs = []
             //jniLibs.srcDirs = ['src/main/jniLibs']

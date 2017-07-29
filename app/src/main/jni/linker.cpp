@@ -39,7 +39,7 @@
 #include "linker_phdr.h"
 
 #include "libc_logging.h"
-#include <test.h>
+#include "otherlib/test.h"
 /* Assume average path length of 64 and max 8 paths */
 #define LDPATH_BUFSIZE 512
 #define LDPATH_MAX 8

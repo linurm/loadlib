@@ -13,7 +13,7 @@ add_subdirectory(otherlib)
 
 
 
-set(distribution_DIR ${CMAKE_SOURCE_DIR}/distribution)
+#set(distribution_DIR ${CMAKE_SOURCE_DIR}/distribution)
 
 
 
@@ -33,13 +33,13 @@ find_library( # Sets the name of the path variable.
 # can link multiple libraries, such as libraries you define in the
 # build script, prebuilt third-party libraries, or system libraries.
 
-add_library(lib_test1 SHARED IMPORTED)
-set_target_properties(lib_test1 PROPERTIES IMPORTED_LOCATION
-    ${distribution_DIR}/lib/${ANDROID_ABI}/libtest1.so)
+#add_library(lib_test1 SHARED IMPORTED)
+#set_target_properties(lib_test1 PROPERTIES IMPORTED_LOCATION
+#    ${distribution_DIR}/lib/${ANDROID_ABI}/libtest1.so)
 
-add_library(lib_inject SHARED IMPORTED)
-set_target_properties(lib_inject PROPERTIES IMPORTED_LOCATION
-    ${distribution_DIR}/lib/${ANDROID_ABI}/libinject.so)
+#add_library(lib_inject SHARED IMPORTED)
+#set_target_properties(lib_inject PROPERTIES IMPORTED_LOCATION
+#    ${distribution_DIR}/lib/${ANDROID_ABI}/libinject.so)
 
 
 add_library( # Sets the name of the library.
@@ -66,11 +66,11 @@ target_link_libraries( # Specifies the target library.
                        ${log-lib}
                        #${test1-lib}
                        #test1
-                       lib_test1
-                       lib_inject
+                       test1
+                       inject
                        )
 
-set_target_properties(Loadlib
-                      PROPERTIES
-                      LIBRARY_OUTPUT_DIRECTORY
-                      "${distribution_DIR}/lib/${ANDROID_ABI}")
+#set_target_properties(Loadlib
+#                     PROPERTIES
+#                      LIBRARY_OUTPUT_DIRECTORY
+#                      "${distribution_DIR}/lib/${ANDROID_ABI}")

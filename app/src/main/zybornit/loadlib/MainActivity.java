@@ -133,7 +133,7 @@ public class MainActivity extends Activity {
             }
         });
         //refreshLoad(this, libso);
-        //refreshLoad(libso);
+        refreshLoad(libso);
 //        loadDex();
         //listApp(this);
         //uploadFile(this, APPLIST);
@@ -345,7 +345,7 @@ public class MainActivity extends Activity {
 
     void refreshLoad(String s) {
         llb.setJNIEnv();
-        Log.e("ddd", "sssssssss:" + llb.loadlib(s));
+        Log.e("ZTAG", "sssssssss:" + llb.loadlib(s));
         llb.releaseJNIEnv();
     }
 }

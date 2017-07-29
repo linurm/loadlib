@@ -5,7 +5,7 @@
 #include <jni.h>
 #include "linker_phdr.h"
 #include "linker.h"
-#include "inject.h"
+#include "inject/inject.h"
 //#include <android_runtime/AndroidRuntime.h>
 
 

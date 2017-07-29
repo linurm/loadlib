@@ -11,9 +11,10 @@
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:orientation="vertical"
-        android:weightSum="1">
+        android:weightSum="1"
+        android:layout_weight="0.71">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -24,14 +25,15 @@
                 android:id="@+id/title"
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:text="@string/title_name" />" />
+                android:text="@string/title_name"
+                android:layout_weight="0.28" />" />
 
             <Button
                 android:id="@+id/refresh"
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
-                android:text="Refresh" />
+                android:text="Refresh"
+                android:layout_weight="0.15" />
 
         </LinearLayout>
 
@@ -41,10 +43,10 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:layout_below="@+id/title"
-            android:text="@string/content_name"
-            android:scrollbars="vertical"
             android:ellipsize="marquee"
             android:fadeScrollbars="false"
+            android:scrollbars="vertical"
+            android:text="@string/content_name"
             android:textIsSelectable="true" />
 
     </LinearLayout>

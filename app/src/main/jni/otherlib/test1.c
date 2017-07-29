@@ -3,12 +3,12 @@
 //
 #include "test.h"
 
-void testf(){
+void testf(void) {
     DL_ERR("this is testf() in libtest1.so");
     return;
 }
 
-void testg(){
+void testg(void) {
     DL_ERR("this is testg() in libtest1.so after inject");
     return;
 }

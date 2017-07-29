@@ -13,20 +13,20 @@ add_library(test1
             SHARED
             test1.c
 )
-set(distribution_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../distribution)
+#set(distribution_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../distribution)
 
 target_link_libraries(test1
         log
 )
-set_target_properties(test1
-                      PROPERTIES
-                      LIBRARY_OUTPUT_DIRECTORY
-                      "${distribution_DIR}/lib/${ANDROID_ABI}")
-add_custom_command(TARGET test1 POST_BUILD
-                   COMMAND "${CMAKE_COMMAND}" -E
-                   copy "${CMAKE_CURRENT_SOURCE_DIR}/test.h"
-                   "${distribution_DIR}/include/test.h"
+#set_target_properties(test1
+#                      PROPERTIES
+#                      LIBRARY_OUTPUT_DIRECTORY
+#                      "${distribution_DIR}/lib/${ANDROID_ABI}")
+#add_custom_command(TARGET test1 POST_BUILD
+#                   COMMAND "${CMAKE_COMMAND}" -E
+#                   copy "${CMAKE_CURRENT_SOURCE_DIR}/test.h"
+#                   "${distribution_DIR}/include/test.h"
 #                   **** the following 2 lines are for potential future debug purpose ****
 #                   COMMAND "${CMAKE_COMMAND}" -E
 #                   remove_directory "${CMAKE_CURRENT_BINARY_DIR}"
-                   COMMENT "Copying gmath to output directory")
+#                   COMMENT "Copying gmath to output directory")
