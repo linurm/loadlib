@@ -244,7 +244,7 @@ static void set_soinfo_pool_protection(int protection) {
             abort(); // Can't happen.
         }
     }
-    testf();
+
 }
 
 static soinfo *soinfo_alloc(const char *name) {

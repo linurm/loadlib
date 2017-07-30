@@ -17,6 +17,8 @@ extern "C" {
 void loadLibTest(const char *name) {
     void *handle;
     void *vonLoad;
+
+    testf();
 #if 1
     //set_soinfo_pool_protection(PROT_READ | PROT_WRITE);
     soinfo *si = find_library(name);

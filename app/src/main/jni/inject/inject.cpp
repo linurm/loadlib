@@ -46,72 +46,6 @@ const char *linker_path = "/system/bin/linker";
 #endif
 
 
-int ptrace_readdata(pid_t pid, uint8_t *src, uint8_t *buf, size_t size) {
-    uint32_t i, j, remain;
-    uint8_t *laddr;
-
-    union u {
-        long val;
-        char chars[sizeof(long)];
-    } d;
-
-    j = size / 4;
-    remain = size % 4;
-
-    laddr = buf;
-
-    for (i = 0; i < j; i++) {
-        d.val = ptrace(PTRACE_PEEKTEXT, pid, src, 0);
-        memcpy(laddr, d.chars, 4);
-        src += 4;
-        laddr += 4;
-    }
-
-    if (remain > 0) {
-        d.val = ptrace(PTRACE_PEEKTEXT, pid, src, 0);
-        memcpy(laddr, d.chars, remain);
-    }
-
-    return 0;
-
-}
-
-int ptrace_writedata(pid_t pid, uint8_t *dest, uint8_t *data, size_t size) {
-    uint32_t i, j, remain;
-    uint8_t *laddr;
-
-    union u {
-        long val;
-        char chars[sizeof(long)];
-    } d;
-
-    j = size / 4;
-    remain = size % 4;
-
-    laddr = data;
-
-    for (i = 0; i < j; i++) {
-        memcpy(d.chars, laddr, 4);
-        ptrace(PTRACE_POKETEXT, pid, dest, d.val);
-
-        dest += 4;
-        laddr += 4;
-    }
-
-    if (remain > 0) {
-        d.val = ptrace(PTRACE_PEEKTEXT, pid, dest, 0);
-        for (i = 0; i < remain; i++) {
-            d.chars[i] = *laddr++;
-        }
-
-        ptrace(PTRACE_POKETEXT, pid, dest, d.val);
-
-    }
-
-    return 0;
-}
-
-
 void *get_module_base(pid_t pid, const char *module_name) {
     FILE *fp;
     long addr = 0;
@@ -226,24 +160,6 @@ int injectLibFunc(pid_t target_pid, const char *soname, const char *symbol, void
     return (int) addr;
 }
 
-void printWordHex(void *addr) {
-    DL_DEBUG(" 0x%x", (int) addr);
-    DL_DEBUG("   %x", *(int *) addr);
-}
-
-void printHalfHex(void *addr) {
-    DL_DEBUG(" 0x%x", (int) addr);
-    DL_DEBUG("   0x%x", *(uint16_t *) addr);
-}
-
-void printByteHex(void *addr) {
-    DL_DEBUG(" 0x%x", (int) addr);
-    DL_DEBUG("   %x", *(char *) addr);
-}
-
-void printHex(void *addr) {
-    DL_DEBUG(" 0x%x", (int) addr);
-}
 
 /*void *elf_hook(char const *module_filename,
                void const *module_address, char const *name, void const *substitution)
@@ -420,6 +336,8 @@ int changeLibFuncAddr(void *addr, const char *dlib, const char *symbol, void *re
                       void **old_func) {
 
     Elf32_Ehdr *elf = (Elf32_Ehdr *) addr;
+    int i;
+    char *string_table;
 //    Elf32_Phdr *phdr;
 //    Elf32_Shdr *shdr;
     DL_DEBUG("++++++++++");
@@ -430,10 +348,24 @@ int changeLibFuncAddr(void *addr, const char *dlib, const char *symbol, void *re
 //    elfInfo.ehdr = (Elf32_Ehdr *)addr;
 //    elfInfo.phdr = addr + elf->e_phoff;
 //    elfInfo.shdr = addr + elf->e_shoff;
-    elfInfo.shstr = NULL;
+//    elfInfo.shstr = NULL;
 
 
     getElfInfoBySegmentView(elfInfo, handle);
+
+    int shnum = elfInfo.ehdr->e_shnum;
+    int shentsize = elfInfo.ehdr->e_shentsize;
+    DL_DEBUG("%d %x",shnum,shentsize);
+
+//    for(i = 0; i < shnum; i++){
+//        Elf32_Shdr *s = elfInfo.shdr + i;
+//        if(s->sh_type == SHT_PROGBITS){
+//
+//        }
+//    }
+
+    string_table = (char *) (elfInfo.shstr);
+    printHex((void *) string_table);
 
 
     Elf32_Phdr *dynamic = NULL;
@@ -453,7 +385,7 @@ int changeLibFuncAddr(void *addr, const char *dlib, const char *symbol, void *re
         DL_DEBUG("[+] sym %x %x, symidx %d.", sym, ((int) sym - (int) (elfInfo.handle->base)),
                  symidx);
     }
-    DL_DEBUG("+++++++++++%d",elfInfo.relpltsz);
+    DL_DEBUG("+++++++++++%d", elfInfo.relpltsz);
     for (int i = 0; i < elfInfo.relpltsz; i++) {
         Elf32_Rel &rel = elfInfo.relplt[i];
         printHex((void *) rel.r_info);
@@ -468,7 +400,7 @@ int changeLibFuncAddr(void *addr, const char *dlib, const char *symbol, void *re
             break;
         }
     }
-    DL_DEBUG("------------%d",elfInfo.reldynsz);
+    DL_DEBUG("------------%d", elfInfo.reldynsz);
     for (int i = 0; i < elfInfo.reldynsz; i++) {
         Elf32_Rel &rel = elfInfo.reldyn[i];
         printHex((void *) rel.r_info);
@@ -484,6 +416,13 @@ int changeLibFuncAddr(void *addr, const char *dlib, const char *symbol, void *re
         }
     }
     DL_DEBUG("find glob2");
+
+
+    elfInfo.ehdr->e_shentsize;
+    elfInfo.ehdr->e_shnum;
+    elfInfo.ehdr->e_shstrndx * elfInfo.ehdr->e_shentsize;
+
+
     fails:
     return 0;
 //    void *p;

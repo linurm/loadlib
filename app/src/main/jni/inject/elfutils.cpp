@@ -8,6 +8,7 @@
 
 #include "elfutils.h"
 #include "../otherlib/test.h"
+#include "inject.h"
 
 static inline Elf32_Shdr *findSectionByName(ElfInfo &info, const
 char *sname
@@ -103,16 +104,27 @@ unsigned elf_hash(const char *name) {
     return h;
 }
 
-void getElfInfoBySectionView(ElfInfo &info, const ElfHandle *handle) {
-
+void getElfInfoByHeader(ElfInfo &info, const ElfHandle *handle) {
     info.handle = handle;
     info.elf_base = (uint8_t *) handle->base;
+//    DL_DEBUG("-----------------");
+//    printWordHex(info.elf_base);
     info.ehdr = reinterpret_cast<Elf32_Ehdr *>(info.elf_base);
     info.shdr = reinterpret_cast<Elf32_Shdr *>(info.elf_base + info.ehdr->e_shoff);
     info.phdr = reinterpret_cast<Elf32_Phdr *>(info.elf_base + info.ehdr->e_phoff);
 
-    Elf32_Shdr *shstr = (Elf32_Shdr *) (info.shdr + info.ehdr->e_shstrndx);
-    info.shstr = reinterpret_cast<char *>(info.elf_base + shstr->sh_offset);
+//    Elf32_Shdr *shstr = (Elf32_Shdr *) (info.shdr + info.ehdr->e_shstrndx);
+//    printHex(info.shdr);
+//    printHex(shstr);printWordHex(info.elf_base+0x20c0);
+//    info.shstr = reinterpret_cast<char *>(info.elf_base + shstr->sh_offset);
+//
+//    printHex(info.shstr);
+//    DL_DEBUG("+++++++++++++++++");
+}
+
+void getElfInfoBySectionView(ElfInfo &info, const ElfHandle *handle) {
+
+    getElfInfoByHeader(info, handle);
 
     getSectionInfo(info, ".dynstr", NULL, NULL, &info.symstr);
     getSectionInfo(info, ".dynamic", &info.dynsz, NULL, &info.dyn);
@@ -130,20 +142,36 @@ void getElfInfoBySectionView(ElfInfo &info, const ElfHandle *handle) {
     }
 }
 
+#define PAGE_START(x)  ((x) & PAGE_MASK)
+
+// Returns the offset of address 'x' in its page.
+#define PAGE_OFFSET(x) ((x) & ~PAGE_MASK)
+
+// Returns the address of the next page after address 'x', unless 'x' is
+// itself at the start of a page.
+#define PAGE_END(x)    PAGE_START((x) + (PAGE_SIZE-1))
+
+void printPTLoad(ElfInfo &info) {
+    Elf32_Phdr *phdr = info.phdr;
+
+    for (int i = 0; i < info.ehdr->e_phnum; i++) {
+        if (phdr[i].p_type == PT_LOAD) {
+            DL_DEBUG("0x%x 0x%x ====>", PAGE_START(phdr[i].p_vaddr),
+                     PAGE_END(phdr[i].p_vaddr + phdr[i].p_memsz));
+        }
+    }
+
+
+}
+
 void getElfInfoBySegmentView(ElfInfo &info, const ElfHandle *handle) {
 
-    info.handle = handle;
-    info.elf_base = (uint8_t *) handle->base;
-    info.ehdr = reinterpret_cast<Elf32_Ehdr *>(info.elf_base);
-
-// may be wrong
-    info.shdr = reinterpret_cast<Elf32_Shdr *>(info.elf_base + info.ehdr->e_shoff);
-    info.phdr = reinterpret_cast<Elf32_Phdr *>(info.elf_base + info.ehdr->e_phoff);
-
-    info.shstr = NULL;
+    getElfInfoByHeader(info, handle);
 
     Elf32_Phdr *dynamic = NULL;
     Elf32_Word size = 0;
+    printPTLoad(info);
+
 
     getSegmentInfo(info, PT_DYNAMIC, &dynamic, &size, &info.dyn);
     if (!dynamic) {
@@ -151,13 +179,14 @@ void getElfInfoBySegmentView(ElfInfo &info, const ElfHandle *handle) {
         exit(-1);
     }
 
-    DL_DEBUG("======%x %x %x %x", dynamic->p_vaddr, dynamic->p_memsz, size, info.dyn);
 
     info.dynsz = size / sizeof(Elf32_Dyn);
 
     Elf32_Dyn *dyn = info.dyn;
+    DL_DEBUG("======0x%x %d %d 0x%x %d", dynamic->p_vaddr, dynamic->p_memsz, size, info.dyn,
+             info.dynsz);
     for (int i = 0; i < info.dynsz; i++, dyn++) {
-
+        DL_DEBUG("----      %x", dyn->d_tag);
         switch (dyn->d_tag) {
 
             case DT_SYMTAB:
