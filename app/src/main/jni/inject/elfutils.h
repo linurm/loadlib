@@ -45,6 +45,12 @@ typedef struct ElfInfo {
 
 } ElfInfo;
 
+typedef  struct AddInfo{
+    uint32_t start_addr;
+    uint32_t sizen;
+    AddInfo* next;
+} AddInfo;
+
 /**
  * 符号hash函数
  */

@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <android/log.h>
 #include "../otherlib/test.h"
+#include "elfutils.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -39,7 +40,7 @@ int inject_remote_process(pid_t target_pid, const char *library_path, const char
 
 int find_pid_of(const char *process_name);
 
-void *get_module_base(pid_t pid, const char *module_name);
+AddInfo *get_module_base(pid_t pid, const char *module_name);
 
 #ifdef __cplusplus
 }

@@ -8,7 +8,6 @@
 
 #include "elfutils.h"
 #include "../otherlib/test.h"
-#include "inject.h"
 
 static inline Elf32_Shdr *findSectionByName(ElfInfo &info, const
 char *sname
@@ -72,7 +71,7 @@ getSegmentInfo(ElfInfo &info, const Elf32_Word type, Elf32_Phdr **ppPhdr, Elf32_
                T *data) {
     Elf32_Phdr *_phdr = findSegmentByType(info, type);
 
-    DL_DEBUG("======%x", (int) _phdr - (int) (info.elf_base));
+    DL_DEBUG("PT_DYNAMIC(%d) type ===== 0x%x", type, (int) _phdr - (int) (info.elf_base));
 
     if (_phdr) {
 //        if (info.handle->fromfile) { //文件读取
@@ -156,8 +155,9 @@ void printPTLoad(ElfInfo &info) {
 
     for (int i = 0; i < info.ehdr->e_phnum; i++) {
         if (phdr[i].p_type == PT_LOAD) {
-            DL_DEBUG("0x%x 0x%x ====>", PAGE_START(phdr[i].p_vaddr),
-                     PAGE_END(phdr[i].p_vaddr + phdr[i].p_memsz));
+            DL_DEBUG("0x%x 0x%x ==== 0x%x 0x%x ====> 0x%x --- 0x%x", phdr[i].p_offset,
+                     phdr[i].p_memsz, PAGE_START(phdr[i].p_vaddr),
+                     PAGE_END(phdr[i].p_vaddr + phdr[i].p_memsz), PAGE_START(phdr[i].p_vaddr));
         }
     }
 
@@ -170,6 +170,7 @@ void getElfInfoBySegmentView(ElfInfo &info, const ElfHandle *handle) {
 
     Elf32_Phdr *dynamic = NULL;
     Elf32_Word size = 0;
+
     printPTLoad(info);
 
 
@@ -185,46 +186,38 @@ void getElfInfoBySegmentView(ElfInfo &info, const ElfHandle *handle) {
     Elf32_Dyn *dyn = info.dyn;
     DL_DEBUG("======0x%x %d %d 0x%x %d", dynamic->p_vaddr, dynamic->p_memsz, size, info.dyn,
              info.dynsz);
+    //======0x1cbb0 304 304 0xa3101bb0 38
     for (int i = 0; i < info.dynsz; i++, dyn++) {
-        DL_DEBUG("----      %x", dyn->d_tag);
+//        DL_DEBUG("----      %x", dyn->d_tag);
         switch (dyn->d_tag) {
-
             case DT_SYMTAB:
                 info.sym = reinterpret_cast<Elf32_Sym *>(info.elf_base + dyn->d_un.d_ptr);
                 break;
-
             case DT_STRTAB:
                 info.symstr = reinterpret_cast<const char *>(info.elf_base + dyn->d_un.d_ptr);
                 break;
-
             case DT_REL:
                 info.reldyn = reinterpret_cast<Elf32_Rel *>(info.elf_base + dyn->d_un.d_ptr);
                 break;
-
             case DT_RELSZ:
                 info.reldynsz = dyn->d_un.d_val / sizeof(Elf32_Rel);
                 break;
-
             case DT_JMPREL:
                 info.relplt = reinterpret_cast<Elf32_Rel *>(info.elf_base + dyn->d_un.d_ptr);
                 break;
-
             case DT_PLTRELSZ:
                 info.relpltsz = dyn->d_un.d_val / sizeof(Elf32_Rel);
                 break;
-
             case DT_HASH:
                 uint32_t *rawdata = reinterpret_cast<uint32_t *>(info.elf_base + dyn->d_un.d_ptr);
                 info.nbucket = rawdata[0];
                 info.nchain = rawdata[1];
                 info.bucket = rawdata + 2;
                 info.chain = info.bucket + info.nbucket;
-
                 info.symsz = info.nchain;
                 break;
         }
     }
-
 }
 
 void findSymByName(ElfInfo &info, const char *symbol, Elf32_Sym **sym, int *symidx) {

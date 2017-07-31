@@ -10,15 +10,12 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/ptrace.h>
 #include <sys/mman.h>
 #include <sys/exec_elf.h>
 #include <dirent.h>
 #include <unistd.h>
 #include <errno.h>
 #include "inject.h"
-#include "../otherlib/test.h"
-#include "elfutils.h"
 
 #define ENABLE_DEBUG 0
 
@@ -45,11 +42,29 @@ const char *linker_path = "/system/bin/linker";
 #define DEBUG_PRINT(format, args...)
 #endif
 
+AddInfo *mallocAddinfo(u_int32_t addrs, u_int32_t addre) {
+    AddInfo *addr;
+    addr = (AddInfo *) malloc(sizeof(AddInfo));
+    addr->start_addr = addrs;
+    addr->sizen = addre-addrs;
+    addr->next = NULL;
+    if (addr->start_addr == 0x8000)
+        addr->start_addr = 0;
+    return addr;
+}
 
-void *get_module_base(pid_t pid, const char *module_name) {
+AddInfo *get_module_base(pid_t pid, const char *module_name) {
     FILE *fp;
-    long addr = 0;
+    AddInfo *addr = NULL;
+    AddInfo *addrinfo = NULL;
+    AddInfo *addrf = NULL;
+    AddInfo *addrp = NULL;
+//    AddInfo *addrn = NULL;
     char *pch;
+    char *pend;
+    int found = 0;
+    u_int32_t addrs = 0;
+    u_int32_t addre = 0;
     char filename[32];
     char line[1024];
 
@@ -65,41 +80,98 @@ void *get_module_base(pid_t pid, const char *module_name) {
     if (fp != NULL) {
         while (fgets(line, sizeof(line), fp)) {
             if (strstr(line, module_name)) {
+                DL_DEBUG("_____ %s", line);
                 pch = strtok(line, "-");
-                addr = strtoul(pch, NULL, 16);
-
-                if (addr == 0x8000)
-                    addr = 0;
-
-                break;
+                addrs = strtoul(pch, NULL, 16);
+                pend = strtok(NULL, " ");
+                addre = strtoul(pend, NULL, 16);
+                if (addrinfo != NULL) {
+                    addrf = addrinfo;
+                    do {
+                        addrp = addrf;
+                        if (addrf->start_addr != addrs) {
+                            addrf = addrf->next;
+                        } else {
+                            found = 1;
+                            break;
+                        }
+                    } while (addrf != NULL);
+                    if (found == 0) {
+                        addr = mallocAddinfo(addrs, addre);
+                        if (addrp != NULL)
+                            addrp->next = addr;
+                    }
+                    found = 0;
+                } else {
+                    if (found == 0) {
+                        addr = mallocAddinfo(addrs, addre);
+                        if (addrp != NULL)
+                            addrp->next = addr;
+                    }
+                    addrinfo = addr;
+                }
             }
         }
-
         fclose(fp);
     }
 
-    return (void *) addr;
+    return addrinfo;
 }
 
+void releaseAddInfo(AddInfo *pAddInfo) {
+    AddInfo *p1;
+    AddInfo *p2;
+    p1 = pAddInfo;
+    while (p1 != NULL) {
+        if (p1->next != NULL) {
+            p2 = p1->next;
+            free(p1);
+            p1 = p2;
+        } else {
+            free(p1);
+            p1 = NULL;
+        }
+    }
+}
+
+void printAddInfo(AddInfo *pAddInfo) {
+    AddInfo *p;
+    if (pAddInfo != NULL) {
+
+        p = pAddInfo;
+        do {
+            DL_DEBUG("0x%x --- 0x%x", p->start_addr, p->sizen);
+            p = p->next;
+        } while (p != NULL);
+    } else {
+        DL_DEBUG("The AddInfo list is null");
+    }
+}
 
 void *get_remote_addr(pid_t target_pid, const char *module_name, void *local_addr) {
+
+
     void *local_handle, *remote_handle;
 
     local_handle = get_module_base(-1, module_name);
     remote_handle = get_module_base(target_pid, module_name);
 
-    DL_DEBUG("[+] get_remote_addr: local[0x%x], remote[0x%x] [0x%x]\n", (unsigned int) local_handle,
+
+    DL_DEBUG("[+] get_remote_addr: local[0x%x], remote[0x%x] [0x%x]\n",
+             (unsigned int) local_handle,
              (unsigned int) remote_handle, (unsigned int) local_addr);
 
-    return (void *) ((uint32_t) local_addr + (uint32_t) remote_handle - (uint32_t) local_handle);
+    return (void *) ((uint32_t) local_addr + (uint32_t) remote_handle -
+                     (uint32_t) local_handle);
 }
 
-void *getLibMemAddr(pid_t target_pid, const char *module_name) {
-    void *local_handle, *remote_handle;
+AddInfo *getLibMemAddr(pid_t target_pid, const char *module_name) {
+    AddInfo *local_handle;
+    AddInfo *remote_handle;
 
-    local_handle = get_module_base(-1, module_name);
+//    local_handle = get_module_base(-1, module_name);
     remote_handle = get_module_base(target_pid, module_name);
-
+    printAddInfo(remote_handle);
     DL_DEBUG("[+] get_remote_addr: local[0x%x], remote[0x%x]\n", (unsigned int) local_handle,
              (unsigned int) remote_handle);
     return remote_handle;
@@ -132,7 +204,6 @@ int find_pid_of(const char *process_name) {
             if (fp) {
                 fgets(cmdline, sizeof(cmdline), fp);
                 fclose(fp);
-
                 if (strcmp(process_name, cmdline) == 0) {
                     /* process found */
                     pid = id;
@@ -148,15 +219,16 @@ int find_pid_of(const char *process_name) {
 }
 
 
-int changeLibFuncAddr(void *addr, const char *dlib, const char *symbol, void *replace_func,
+int changeLibFuncAddr(AddInfo *addr, const char *dlib, const char *symbol, void *replace_func,
                       void **old_func);
 
 int injectLibFunc(pid_t target_pid, const char *soname, const char *symbol, void *replace_func,
                   void **old_func) {
     void *addr;
-    void *base_addr;
+    AddInfo *base_addr;
     base_addr = getLibMemAddr(target_pid, soname);
     changeLibFuncAddr(base_addr, soname, symbol, replace_func, old_func);
+    releaseAddInfo(base_addr);
     return (int) addr;
 }
 
@@ -332,10 +404,10 @@ void getLibSegmentInfo() {
 
 }
 
-int changeLibFuncAddr(void *addr, const char *dlib, const char *symbol, void *replace_func,
+int changeLibFuncAddr(AddInfo *addr, const char *dlib, const char *symbol, void *replace_func,
                       void **old_func) {
 
-    Elf32_Ehdr *elf = (Elf32_Ehdr *) addr;
+    Elf32_Ehdr *elf = (Elf32_Ehdr *) (addr->start_addr);
     int i;
     char *string_table;
 //    Elf32_Phdr *phdr;
@@ -343,7 +415,7 @@ int changeLibFuncAddr(void *addr, const char *dlib, const char *symbol, void *re
     DL_DEBUG("++++++++++");
     ElfHandle *handle = (ElfHandle *) malloc(sizeof(ElfHandle));;
     ElfInfo elfInfo;
-    handle->base = addr;
+    handle->base = (void *)(addr->start_addr);
     elfInfo.handle = handle;
 //    elfInfo.ehdr = (Elf32_Ehdr *)addr;
 //    elfInfo.phdr = addr + elf->e_phoff;
@@ -355,7 +427,7 @@ int changeLibFuncAddr(void *addr, const char *dlib, const char *symbol, void *re
 
     int shnum = elfInfo.ehdr->e_shnum;
     int shentsize = elfInfo.ehdr->e_shentsize;
-    DL_DEBUG("%d %x",shnum,shentsize);
+    DL_DEBUG("%d %x", shnum, shentsize);
 
 //    for(i = 0; i < shnum; i++){
 //        Elf32_Shdr *s = elfInfo.shdr + i;
@@ -364,8 +436,8 @@ int changeLibFuncAddr(void *addr, const char *dlib, const char *symbol, void *re
 //        }
 //    }
 
-    string_table = (char *) (elfInfo.shstr);
-    printHex((void *) string_table);
+//    string_table = (char *) (elfInfo.shstr);
+//    printHex((void *) string_table);
 
 
     Elf32_Phdr *dynamic = NULL;
@@ -382,24 +454,31 @@ int changeLibFuncAddr(void *addr, const char *dlib, const char *symbol, void *re
         DL_DEBUG("[-] Could not find symbol %s", symbol);
         goto fails;
     } else {
-        DL_DEBUG("[+] sym %x %x, symidx %d.", sym, ((int) sym - (int) (elfInfo.handle->base)),
+        DL_DEBUG("[+] sym %x %x, symidx %d.", sym, ((int) sym - (int) (elfInfo.elf_base)),
                  symidx);
     }
     DL_DEBUG("+++++++++++%d", elfInfo.relpltsz);
+
     for (int i = 0; i < elfInfo.relpltsz; i++) {
         Elf32_Rel &rel = elfInfo.relplt[i];
         printHex((void *) rel.r_info);
+
         if (ELF32_R_SYM(rel.r_info) == symidx && ELF32_R_TYPE(rel.r_info) == R_ARM_JUMP_SLOT) {
+
             DL_DEBUG("find symidx");
+
             void *addr = (void *) (elfInfo.elf_base + rel.r_offset);
+            goto fails;
             if (replaceFunc(addr, replace_func, old_func)) {
                 DL_DEBUG("replace function error");
                 goto fails;
             }
+
             //only once
             break;
         }
     }
+
     DL_DEBUG("------------%d", elfInfo.reldynsz);
     for (int i = 0; i < elfInfo.reldynsz; i++) {
         Elf32_Rel &rel = elfInfo.reldyn[i];
@@ -457,7 +536,7 @@ typedef void (*test_fun)(void);
 test_fun old_test = NULL;
 
 void testHook(void) {
-    DL_DEBUG("this is testHook() in libtest1.so after inject");
+    DL_DEBUG("this is testHook() in libinject.so after inject");
     if (old_test != NULL)
         old_test();
     return;
@@ -473,7 +552,8 @@ int injectLib(void) {
 //    DL_DEBUG("inject_remote_process  \"%d\" pid", flag);
     //void (*ff)(void);
     //ff = testf;
-    injectLibFunc(target_pid, "libtest1.so", "testf", (char *) testHook, (void **) &old_test);
+//    injectLibFunc(target_pid, "libtest1.so", "testf", (char *) testHook, (void **) &old_test);
+    injectLibFunc(target_pid, "libLoadlib.so", "testf", (char *) testHook, (void **) &old_test);
 //    inject_so();
 
     return 0;
