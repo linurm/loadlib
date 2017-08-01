@@ -3,9 +3,10 @@
 //
 #include <stdio.h>
 #include <jni.h>
+#include <time.h>
 #include "linker_phdr.h"
 #include "linker.h"
-#include "inject/inject.h"
+#include "inject/zybornit_inject_LoadInjectLib.h"
 //#include <android_runtime/AndroidRuntime.h>
 
 
@@ -28,11 +29,11 @@ void loadLibTest(const char *name) {
     //set_soinfo_pool_protection(PROT_READ);
 #else
 #define RTLD_LAZY 1
-//    handle = do_zlopen(name, RTLD_LAZY);
-//
-//    vonLoad = zlsym(handle, "JNI_OnLoad");
-//
-//    do_zlclose((soinfo *) handle);
+    //    handle = do_zlopen(name, RTLD_LAZY);
+    //
+    //    vonLoad = zlsym(handle, "JNI_OnLoad");
+    //
+    //    do_zlclose((soinfo *) handle);
 
 #endif
 }
@@ -101,9 +102,12 @@ JNICALL Java_zybornit_loadlib_LoadLibrary_loadlib(JNIEnv *env, jobject obj,
     //printf("C_str: %s \n", c_str);
     //DL_ERR("C_str: %s ", c_str);
     //DL_ERR("C_str");
-    injectLib();
+    //injectLib();
 
     loadLibTest(c_str);
+    timespec t;
+    clock_gettime(CLOCK_REALTIME, &t);
+    DL_DEBUG("clock_gettime = %d", t.tv_sec);
     sprintf(buff, "hello %s ", c_str);
     env->ReleaseStringUTFChars(j_str, c_str);
     jstring a = env->NewStringUTF(buff);

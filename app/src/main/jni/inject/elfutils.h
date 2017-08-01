@@ -98,6 +98,9 @@ void printfSymbols(ElfInfo &info);
  */
 void printfRelInfo(ElfInfo &info);
 
+
+void printWordHex2(__uint32_t *addr);
+
 #ifdef __cplusplus
 }
 #endif

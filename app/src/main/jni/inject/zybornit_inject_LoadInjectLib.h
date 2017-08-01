@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __INJECT_H__
+#define __INJECT_H__
 
 #include <sys/types.h>
 #include <stddef.h>
@@ -7,13 +8,22 @@
 #include <android/log.h>
 #include "../otherlib/test.h"
 #include "elfutils.h"
+#include <jni.h>
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
-
-
+JNIEXPORT jstring JNICALL Java_zybornit_inject_LoadInjectLib_injectLib
+        (JNIEnv *, jobject, jstring, jstring, jstring);
+JNIEXPORT jstring JNICALL Java_zybornit_inject_LoadInjectLib_addHalfHour
+        (JNIEnv *, jobject, jstring);
+JNIEXPORT jstring JNICALL Java_zybornit_inject_LoadInjectLib_decHalfHour
+        (JNIEnv *, jobject, jstring);
+JNIEXPORT jstring JNICALL Java_zybornit_inject_LoadInjectLib_addHour
+        (JNIEnv *, jobject, jstring);
+JNIEXPORT jstring JNICALL Java_zybornit_inject_LoadInjectLib_decHour
+        (JNIEnv *, jobject, jstring);
 #define printWordHex(addr) \
     DL_DEBUG(" 0x%x", (int) addr);\
     DL_DEBUG(" 0x%x", *addr);\
@@ -50,3 +60,4 @@ AddInfo *get_module_base(pid_t pid, const char *module_name);
 struct inject_param_t {
     pid_t from_pid;
 };
+#endif

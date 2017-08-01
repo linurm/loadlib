@@ -11,7 +11,7 @@ set(CMAKE_VERBOSE_MAKEFILE on)
 
 add_library(inject
             SHARED
-            inject.cpp
+            zybornit_inject_LoadInjectLib.cpp
             elfutils.cpp
 )
 

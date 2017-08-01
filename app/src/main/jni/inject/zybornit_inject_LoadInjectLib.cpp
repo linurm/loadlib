@@ -15,7 +15,7 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <errno.h>
-#include "inject.h"
+#include "zybornit_inject_LoadInjectLib.h"
 
 #define ENABLE_DEBUG 0
 
@@ -46,7 +46,7 @@ AddInfo *mallocAddinfo(u_int32_t addrs, u_int32_t addre) {
     AddInfo *addr;
     addr = (AddInfo *) malloc(sizeof(AddInfo));
     addr->start_addr = addrs;
-    addr->sizen = addre-addrs;
+    addr->sizen = addre - addrs;
     addr->next = NULL;
     if (addr->start_addr == 0x8000)
         addr->start_addr = 0;
@@ -378,17 +378,20 @@ static int replaceFunc(void *addr, void *replace_func, void **old_func) {
     }
 
     if (!*old_func) {
+        DL_DEBUG("old_func %p save", old_func);
         *old_func = *(void **) addr;
     }
 
-    if (modifyMemAccess((void *) addr, PROT_EXEC | PROT_READ | PROT_WRITE)) {
+    if (modifyMemAccess((void *) addr, PROT_READ | PROT_WRITE)) {
         DL_DEBUG("[-] modifymemAccess fails, error %s.", strerror(errno));
         res = 1;
         goto fails;
     }
 
     *(void **) addr = replace_func;
-    clearCache(addr, getpagesize());
+
+//    clearCache(addr, getpagesize());
+    goto fails;
     DL_DEBUG("[+] old_func is %p, replace_func is %p, new_func %p.", *old_func, replace_func,
              (void *) addr);
 
@@ -404,9 +407,89 @@ void getLibSegmentInfo() {
 
 }
 
+//typedef void (*test_fun)(void);
+//
+//test_fun old_test = NULL;
+//
+//void testHook(void) {
+//    DL_DEBUG("this is testHook() in libinject.so after inject");
+//    if (old_test != NULL)
+//        old_test();
+//    return;
+//}
+typedef int (*test_fun)(int clock_id, timespec *tp);
+
+test_fun old_test = NULL;
+
+static int halfHourFlag = 0;
+
+int clock_gettime_hook(int clock_id, timespec *tp) {
+    timespec t;
+    int flag;
+    flag = old_test(clock_id, &t);
+    tp->tv_nsec = t.tv_nsec;
+    tp->tv_sec = t.tv_sec + (halfHourFlag * 30 * 60 - 5);
+
+    return flag;
+
+}
+
+
+JNIEXPORT jstring JNICALL
+Java_zybornit_inject_LoadInjectLib_addHalfHour(JNIEnv *env, jobject obj, jstring j_str) {
+    halfHourFlag += 1;
+    return NULL;
+}
+
+JNIEXPORT jstring JNICALL
+Java_zybornit_inject_LoadInjectLib_decHalfHour(JNIEnv *env, jobject obj, jstring j_str) {
+    halfHourFlag -= 1;
+    return NULL;
+}
+
+JNIEXPORT jstring JNICALL
+Java_zybornit_inject_LoadInjectLib_addHour(JNIEnv *env, jobject obj, jstring j_str) {
+    halfHourFlag += 2;
+    return NULL;
+}
+
+JNIEXPORT jstring JNICALL
+Java_zybornit_inject_LoadInjectLib_decHour(JNIEnv *env, jobject obj, jstring j_str) {
+    halfHourFlag -= 2;
+    return NULL;
+}
+
+JNIEXPORT jstring JNICALL
+Java_zybornit_inject_LoadInjectLib_injectLib(JNIEnv *env, jobject obj, jstring j_str, jstring j_lib,jstring j_func) {
+    const char *c_str = NULL;
+    const char *c_str_libname = NULL;
+    const char *c_str_fun = NULL;
+    pid_t target_pid;
+    jboolean isCopy;
+    c_str = env->GetStringUTFChars(j_str, &isCopy);
+    if (c_str == NULL) {
+        return NULL;
+    }
+
+    target_pid = find_pid_of(c_str);
+
+    c_str_libname = env->GetStringUTFChars(j_lib, &isCopy);
+    if (c_str_libname == NULL) {
+        return NULL;
+    }
+    c_str_fun = env->GetStringUTFChars(j_func, &isCopy);
+    if (c_str_fun == NULL) {
+        return NULL;
+    }
+
+    DL_DEBUG("find  \"%d\" pid", target_pid);
+    injectLibFunc(target_pid, c_str_libname, c_str_fun, (char *) clock_gettime_hook,
+                  (void **) &old_test);
+    return NULL;
+}
+
 int changeLibFuncAddr(AddInfo *addr, const char *dlib, const char *symbol, void *replace_func,
                       void **old_func) {
-
     Elf32_Ehdr *elf = (Elf32_Ehdr *) (addr->start_addr);
     int i;
     char *string_table;
@@ -415,7 +498,7 @@ int changeLibFuncAddr(AddInfo *addr, const char *dlib, const char *symbol, void 
     DL_DEBUG("++++++++++");
     ElfHandle *handle = (ElfHandle *) malloc(sizeof(ElfHandle));;
     ElfInfo elfInfo;
-    handle->base = (void *)(addr->start_addr);
+    handle->base = (void *) (addr->start_addr);
     elfInfo.handle = handle;
 //    elfInfo.ehdr = (Elf32_Ehdr *)addr;
 //    elfInfo.phdr = addr + elf->e_phoff;
@@ -461,28 +544,25 @@ int changeLibFuncAddr(AddInfo *addr, const char *dlib, const char *symbol, void 
 
     for (int i = 0; i < elfInfo.relpltsz; i++) {
         Elf32_Rel &rel = elfInfo.relplt[i];
-        printHex((void *) rel.r_info);
+//        printHex((void *) rel.r_info);
 
         if (ELF32_R_SYM(rel.r_info) == symidx && ELF32_R_TYPE(rel.r_info) == R_ARM_JUMP_SLOT) {
-
-            DL_DEBUG("find symidx");
-
+//            printHex((__uint32_t *) rel.r_info);
             void *addr = (void *) (elfInfo.elf_base + rel.r_offset);
-            goto fails;
+            DL_DEBUG("find symidx 0x%x", addr);
             if (replaceFunc(addr, replace_func, old_func)) {
                 DL_DEBUG("replace function error");
                 goto fails;
             }
-
             //only once
             break;
         }
     }
 
-    DL_DEBUG("------------%d", elfInfo.reldynsz);
+    //DL_DEBUG("------------%d", elfInfo.reldynsz);
     for (int i = 0; i < elfInfo.reldynsz; i++) {
         Elf32_Rel &rel = elfInfo.reldyn[i];
-        printHex((void *) rel.r_info);
+        //printHex((void *) rel.r_info);
         if (ELF32_R_SYM(rel.r_info) == symidx &&
             (ELF32_R_TYPE(rel.r_info) == R_ARM_ABS32
              || ELF32_R_TYPE(rel.r_info) == R_ARM_GLOB_DAT)) {
@@ -494,7 +574,7 @@ int changeLibFuncAddr(AddInfo *addr, const char *dlib, const char *symbol, void 
             }
         }
     }
-    DL_DEBUG("find glob2");
+//    DL_DEBUG("find glob2");
 
 
     elfInfo.ehdr->e_shentsize;
@@ -531,20 +611,11 @@ int changeLibFuncAddr(AddInfo *addr, const char *dlib, const char *symbol, void 
 extern void testf(void);
 
 
-typedef void (*test_fun)(void);
-
-test_fun old_test = NULL;
-
-void testHook(void) {
-    DL_DEBUG("this is testHook() in libinject.so after inject");
-    if (old_test != NULL)
-        old_test();
-    return;
-}
-
-int injectLib(void) {
+int injectLib() {
     pid_t target_pid;
     int flag;
+
+
     target_pid = find_pid_of("zybornit.loadlib");
     DL_DEBUG("find  \"%d\" pid", target_pid);
 //    flag = inject_remote_process(target_pid, "/dev/yuki/payload.so", "hook_entry", "I'm parameter!",
@@ -553,7 +624,7 @@ int injectLib(void) {
     //void (*ff)(void);
     //ff = testf;
 //    injectLibFunc(target_pid, "libtest1.so", "testf", (char *) testHook, (void **) &old_test);
-    injectLibFunc(target_pid, "libLoadlib.so", "testf", (char *) testHook, (void **) &old_test);
+//    injectLibFunc(target_pid, "libLoadlib.so", "testf", (char *) testHook, (void **) &old_test);
 //    inject_so();
 
     return 0;

@@ -31,6 +31,7 @@ import java.util.List;
 
 import dalvik.system.PathClassLoader;
 import dynamic.interfaces.IDynamic;
+import zybornit.inject.LoadInjectLib;
 
 public class MainActivity extends Activity {
     public static final String FTP_UPLOAD_SUCCESS = "ftp文件上传成功";
@@ -40,6 +41,8 @@ public class MainActivity extends Activity {
     private static final String APPLIST = "applist.txt";
     public TextView tv = null;
     public Button refresh_btn = null;
+    public Button addhh_btn = null;
+    public Button inject_btn = null;
     public Handler handler;
     LoadLibrary llb = null;
     private String libso;
@@ -130,6 +133,21 @@ public class MainActivity extends Activity {
                 Log.e("ZTAG", "lib path: " + libso);
                 refreshLoad(libso);
 
+            }
+        });
+        addhh_btn = (Button) findViewById(R.id.addhalfhour);
+        addhh_btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                LoadInjectLib.addHalfHour("");
+
+            }
+        });
+        inject_btn = (Button) findViewById(R.id.inject);
+        inject_btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                LoadInjectLib.injectLib("zybornit.loadlib", "libLoadlib.so", "clock_gettime");
             }
         });
         //refreshLoad(this, libso);
@@ -331,6 +349,7 @@ public class MainActivity extends Activity {
         fileop.copy(context, soName + ".so", str, soName + "_copy.so");
         libso = str + "/" + soName + "_copy.so";
         llb = new LoadLibrary(this);
+
     }
 
     void sendMessageToTextView(String arg, int delayMS) {

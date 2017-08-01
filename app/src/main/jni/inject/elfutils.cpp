@@ -71,7 +71,6 @@ getSegmentInfo(ElfInfo &info, const Elf32_Word type, Elf32_Phdr **ppPhdr, Elf32_
                T *data) {
     Elf32_Phdr *_phdr = findSegmentByType(info, type);
 
-    DL_DEBUG("PT_DYNAMIC(%d) type ===== 0x%x", type, (int) _phdr - (int) (info.elf_base));
 
     if (_phdr) {
 //        if (info.handle->fromfile) { //文件读取
@@ -150,14 +149,23 @@ void getElfInfoBySectionView(ElfInfo &info, const ElfHandle *handle) {
 // itself at the start of a page.
 #define PAGE_END(x)    PAGE_START((x) + (PAGE_SIZE-1))
 
+void printWordHex2(__uint32_t *addr) {
+    DL_DEBUG("0x%x: 0x%08X(   %02X %02X %02X %02X)", (int) addr, *addr, *(uint8_t *) addr,
+             *((uint8_t *) addr + 1), *((uint8_t *) addr + 2), *((uint8_t *) addr + 3));
+}
+
 void printPTLoad(ElfInfo &info) {
     Elf32_Phdr *phdr = info.phdr;
 
     for (int i = 0; i < info.ehdr->e_phnum; i++) {
         if (phdr[i].p_type == PT_LOAD) {
-            DL_DEBUG("0x%x 0x%x ==== 0x%x 0x%x ====> 0x%x --- 0x%x", phdr[i].p_offset,
-                     phdr[i].p_memsz, PAGE_START(phdr[i].p_vaddr),
-                     PAGE_END(phdr[i].p_vaddr + phdr[i].p_memsz), PAGE_START(phdr[i].p_vaddr));
+            DL_DEBUG("file: [0x%x 0x%x] ====> mem: 0x%x  *  [0x%x 0x%x]  0  0x%x",
+                     phdr[i].p_offset, phdr[i].p_offset + phdr[i].p_filesz,
+                     info.elf_base + PAGE_START(phdr[i].p_vaddr),
+                     info.elf_base + phdr[i].p_vaddr,
+                     info.elf_base + phdr[i].p_vaddr + phdr[i].p_filesz,
+                     info.elf_base + PAGE_END(phdr[i].p_vaddr + phdr[i].p_filesz));
+//            printWordHex2((u_int32_t *) (info.elf_base + phdr[i].p_vaddr));
         }
     }
 
@@ -179,16 +187,16 @@ void getElfInfoBySegmentView(ElfInfo &info, const ElfHandle *handle) {
         DL_DEBUG("[-] could't find PT_DYNAMIC segment");
         exit(-1);
     }
-
+//    DL_DEBUG("PT_DYNAMIC(%d) type ===== 0x%x", type, (int) _phdr - (int) (info.elf_base));
 
     info.dynsz = size / sizeof(Elf32_Dyn);
 
     Elf32_Dyn *dyn = info.dyn;
-    DL_DEBUG("======0x%x %d %d 0x%x %d", dynamic->p_vaddr, dynamic->p_memsz, size, info.dyn,
-             info.dynsz);
+    DL_DEBUG("======[0x%x]0x%x %d %d 0x%x %d", dynamic->p_offset, dynamic->p_vaddr,
+             dynamic->p_memsz, size, info.dyn, info.dynsz);
     //======0x1cbb0 304 304 0xa3101bb0 38
     for (int i = 0; i < info.dynsz; i++, dyn++) {
-//        DL_DEBUG("----      %x", dyn->d_tag);
+        DL_DEBUG("----  0x%x:    0x%x", dyn, dyn->d_tag);
         switch (dyn->d_tag) {
             case DT_SYMTAB:
                 info.sym = reinterpret_cast<Elf32_Sym *>(info.elf_base + dyn->d_un.d_ptr);
@@ -215,6 +223,8 @@ void getElfInfoBySegmentView(ElfInfo &info, const ElfHandle *handle) {
                 info.bucket = rawdata + 2;
                 info.chain = info.bucket + info.nbucket;
                 info.symsz = info.nchain;
+//                printWordHex2(rawdata);
+//                DL_DEBUG("hash 0x%x 0x%x", info.nbucket, info.nchain);
                 break;
         }
     }
