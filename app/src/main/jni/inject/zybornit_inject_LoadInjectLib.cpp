@@ -460,7 +460,8 @@ Java_zybornit_inject_LoadInjectLib_decHour(JNIEnv *env, jobject obj, jstring j_s
 }
 
 JNIEXPORT jstring JNICALL
-Java_zybornit_inject_LoadInjectLib_injectLib(JNIEnv *env, jobject obj, jstring j_str, jstring j_lib,jstring j_func) {
+Java_zybornit_inject_LoadInjectLib_injectLib(JNIEnv *env, jobject obj, jstring j_str, jstring j_lib,
+                                             jstring j_func) {
     const char *c_str = NULL;
     const char *c_str_libname = NULL;
     const char *c_str_fun = NULL;
@@ -554,7 +555,6 @@ int changeLibFuncAddr(AddInfo *addr, const char *dlib, const char *symbol, void 
                 DL_DEBUG("replace function error");
                 goto fails;
             }
-            //only once
             break;
         }
     }
@@ -577,9 +577,9 @@ int changeLibFuncAddr(AddInfo *addr, const char *dlib, const char *symbol, void 
 //    DL_DEBUG("find glob2");
 
 
-    elfInfo.ehdr->e_shentsize;
-    elfInfo.ehdr->e_shnum;
-    elfInfo.ehdr->e_shstrndx * elfInfo.ehdr->e_shentsize;
+//    elfInfo.ehdr->e_shentsize;
+//    elfInfo.ehdr->e_shnum;
+//    elfInfo.ehdr->e_shstrndx * elfInfo.ehdr->e_shentsize;
 
 
     fails:
