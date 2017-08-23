@@ -13,6 +13,7 @@ add_library(inject
             SHARED
             zybornit_inject_LoadInjectLib.cpp
             elfutils.cpp
+            hook_function.cpp
 )
 
 target_link_libraries(inject

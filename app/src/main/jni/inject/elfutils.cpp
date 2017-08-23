@@ -160,11 +160,11 @@ void printPTLoad(ElfInfo &info) {
     for (int i = 0; i < info.ehdr->e_phnum; i++) {
         if (phdr[i].p_type == PT_LOAD) {
             DL_DEBUG("file: [0x%x 0x%x] ====> mem: 0x%x  *  [0x%x 0x%x]  0  0x%x",
-                     phdr[i].p_offset, phdr[i].p_offset + phdr[i].p_filesz,
-                     info.elf_base + PAGE_START(phdr[i].p_vaddr),
-                     info.elf_base + phdr[i].p_vaddr,
-                     info.elf_base + phdr[i].p_vaddr + phdr[i].p_filesz,
-                     info.elf_base + PAGE_END(phdr[i].p_vaddr + phdr[i].p_filesz));
+                     (unsigned int)phdr[i].p_offset, (unsigned int)(phdr[i].p_offset + phdr[i].p_filesz),
+                     (unsigned int)(info.elf_base + PAGE_START(phdr[i].p_vaddr)),
+                     (unsigned int)(info.elf_base + phdr[i].p_vaddr),
+                     (unsigned int)(info.elf_base + phdr[i].p_vaddr + phdr[i].p_filesz),
+                     (unsigned int)(info.elf_base + PAGE_END(phdr[i].p_vaddr + phdr[i].p_filesz)));
 //            printWordHex2((u_int32_t *) (info.elf_base + phdr[i].p_vaddr));
         }
     }
@@ -193,10 +193,10 @@ void getElfInfoBySegmentView(ElfInfo &info, const ElfHandle *handle) {
 
     Elf32_Dyn *dyn = info.dyn;
     DL_DEBUG("======[0x%x]0x%x %d %d 0x%x %d", dynamic->p_offset, dynamic->p_vaddr,
-             dynamic->p_memsz, size, info.dyn, info.dynsz);
+             dynamic->p_memsz, size, (unsigned int)info.dyn, info.dynsz);
     //======0x1cbb0 304 304 0xa3101bb0 38
     for (int i = 0; i < info.dynsz; i++, dyn++) {
-        DL_DEBUG("----  0x%x:    0x%x", dyn, dyn->d_tag);
+        DL_DEBUG("----  0x%x:    0x%x", (unsigned int)dyn, dyn->d_tag);
         switch (dyn->d_tag) {
             case DT_SYMTAB:
                 info.sym = reinterpret_cast<Elf32_Sym *>(info.elf_base + dyn->d_un.d_ptr);
